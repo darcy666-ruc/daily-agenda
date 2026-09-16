@@ -188,14 +188,14 @@
   <div class="gate-card">
     <div class="emblem">日</div>
     <h1 id="gateTitle">工作日程</h1>
-    <p id="gateDesc">输入你的称呼和密码进入</p>
+    <p id="gateDesc">输入你的昵称和密码进入</p>
     <div id="rcShow">
       <div class="tip">🆘 这是你的找回码，请立刻<b>拍照或抄下来</b>保存好</div>
       <div class="code" id="rcCode"></div>
       <div class="tip">以后忘记密码，用它就能找回全部日程和文件</div>
     </div>
     <div class="gate-err" id="gateErr"></div>
-    <input type="text" id="nickInput" placeholder="你的称呼（如：王老师）" autocomplete="off" style="letter-spacing:0">
+    <input type="text" id="nickInput" placeholder="你的昵称（如：王老师）" autocomplete="off" style="letter-spacing:0">
     <input type="password" id="pw1" placeholder="密码" autocomplete="current-password">
     <input type="password" id="pw2" placeholder="再输一次确认" style="display:none" autocomplete="new-password">
     <input type="text" id="rcInput" placeholder="输入 12 位找回码（空格可有可无）" style="display:none;letter-spacing:1px" autocomplete="off">
@@ -444,7 +444,7 @@ let editId = null, fCat = "party";
 let saveTimer = null, dirty = false;
 let storeMeta = null;      // {salt, saltR}
 let nick = null, slotFile = null, curPw = null;
-const ck = ()=>LS_KEY+"_"+slotFile;   // 该称呼在本机的缓存 key
+const ck = ()=>LS_KEY+"_"+slotFile;   // 该昵称在本机的缓存 key
 
 function packData(){ return {tasks, files, rc: myRc}; }
 function unpackData(d){
@@ -493,7 +493,7 @@ let gateMode = "pw";  // pw | setup | recover | recoverNew
 async function initGate(){
   $("app").style.display="none"; $("addBtn").style.display="none"; $("menu").style.display="none";
   $("gate").style.display="flex";
-  // 记住登录：用上次的称呼直接进
+  // 记住登录：用上次的昵称直接进
   const savedKey = localStorage.getItem(LS_KEY+"_jwk");
   const lastNick = localStorage.getItem(LS_KEY+"_lastnick");
   if(savedKey && lastNick){
@@ -509,7 +509,7 @@ async function initGate(){
       enterApp(); backgroundPull(); return;
     }catch(e){ localStorage.removeItem(LS_KEY+"_jwk"); }
   }
-  pwMode("输入你的称呼和密码");
+  pwMode("输入你的昵称和密码");
   $("gateBtn").onclick = onGateSubmit;
   $("pw1").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
   $("pw2").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
@@ -549,7 +549,7 @@ function setupMode(keepData){
 function recoverMode(){
   gateMode = "recover"; gateBase();
   $("gateTitle").textContent = "找回密码";
-  $("gateDesc").textContent = "输入你的称呼和 12 位找回码\n（日程和文件都会保留）";
+  $("gateDesc").textContent = "输入你的昵称和 12 位找回码\n（日程和文件都会保留）";
   $("nickInput").style.display="block";
   $("rcInput").style.display="block";
   $("rememberRow").style.display = "none";
@@ -559,7 +559,7 @@ function recoverMode(){
 $("forgotLink").onclick = ()=> recoverMode();
 
 async function fetchSlot(){
-  // 拉取当前称呼的槽位；返回 store 或 null；网络错误抛异常
+  // 拉取当前昵称的槽位；返回 store 或 null；网络错误抛异常
   return await cloudLoad(slotFile);
 }
 
@@ -568,7 +568,7 @@ async function onGateSubmit(){
   if(gateMode === "pw"){
     const nk = $("nickInput").value.trim();
     const pw = $("pw1").value;
-    if(!nk){ $("gateErr").textContent="请填写你的称呼（如：王老师）"; return; }
+    if(!nk){ $("gateErr").textContent="请填写你的昵称（如：王老师）"; return; }
     if(pw.length < 4){ $("gateErr").textContent="密码至少 4 位"; return; }
     nick = nk;
     slotFile = await slotOf(nick);
@@ -590,7 +590,7 @@ async function onGateSubmit(){
         curPw = pw;
         enterApp(); rememberKey(); backgroundPull();
       }catch(e){
-        $("gateErr").textContent = "密码不正确（若你是第一次用，说明这个称呼已被别人用了，请写全一点，如「王芳老师」）";
+        $("gateErr").textContent = "密码不正确（若你是第一次用，说明这个昵称已被别人用了，请写全一点，如「王芳老师」）";
       }
     }else{
       setupMode(false);   // 第一次用：开通自己的空间
@@ -599,7 +599,7 @@ async function onGateSubmit(){
   else if(gateMode === "recover"){
     const nk = $("nickInput").value.trim();
     const rc = $("rcInput").value.replace(/\s/g,"");
-    if(!nk){ $("gateErr").textContent="请填写你的称呼"; return; }
+    if(!nk){ $("gateErr").textContent="请填写你的昵称"; return; }
     if(!/^\d{12}$/.test(rc)){ $("gateErr").textContent="找回码是 12 位数字"; return; }
     nick = nk;
     slotFile = await slotOf(nick);
@@ -608,7 +608,7 @@ async function onGateSubmit(){
       const c = localStorage.getItem(ck());
       if(c) store = JSON.parse(c);
     }
-    if(!store || !store.wrapRc){ $("gateErr").textContent="没有找到这个称呼的空间"; return; }
+    if(!store || !store.wrapRc){ $("gateErr").textContent="没有找到这个昵称的空间"; return; }
     storeMeta = {salt: store.salt, saltR: store.saltR};
     localStorage.setItem(ck(), JSON.stringify(store));
     try{
