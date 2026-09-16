@@ -507,7 +507,7 @@ async function initGate(){
       enterApp(); backgroundPull(); return;
     }catch(e){ localStorage.removeItem(LS_KEY+"_jwk"); }
   }
-  pwMode("输入你的称呼和密码\n（第一次用：填称呼 + 想用的密码，自动为你开通）");
+  pwMode("输入你的称呼和密码");
   $("gateBtn").onclick = onGateSubmit;
   $("pw1").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
   $("pw2").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
@@ -537,7 +537,7 @@ function setupMode(keepData){
   $("gateTitle").textContent = keepData ? "设置新密码" : ("欢迎，"+nick+"");
   $("gateDesc").textContent = keepData
     ? "找回码验证通过 ✅\n日程和文件都会保留，请设置一个新密码"
-    : "第一次使用，设一个你的专属密码\n（你的空间与别人完全独立，互相看不到）";
+    : "第一次使用，设一个你的专属密码";
   $("pw1").placeholder = "设置一个密码"; $("pw1").style.display="block";
   $("pw2").style.display="block";
   $("gateBtn").textContent = "设置并进入";
