@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>个人日程</title>
+<title>工作日程</title>
 <style>
   :root{
     --red:#A6192E; --red-dark:#8C1526; --bg:#FAF7F5; --card:#FFFFFF;
@@ -22,7 +22,7 @@
   .gate-card .emblem{width:52px;height:52px;margin:0 auto 14px;border-radius:50%;background:var(--red);
              color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;}
   .gate-card h1{font-size:19px;margin:0 0 6px;}
-  .gate-card p{font-size:13px;color:var(--muted);margin:0 0 20px;line-height:1.6;}
+  .gate-card p{font-size:13px;color:var(--muted);margin:0 0 20px;line-height:1.6;white-space:pre-line;}
   .gate-card input{width:100%;padding:13px 14px;font-size:16px;border:1.5px solid var(--line);
              border-radius:10px;margin-bottom:12px;outline:none;text-align:center;letter-spacing:2px;}
   .gate-card input:focus{border-color:var(--red);}
@@ -33,6 +33,7 @@
   .remember{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--muted);margin-bottom:14px;}
   .remember input{width:auto;margin:0;}
   .gate-tip{font-size:12px;color:var(--muted);margin-top:16px;line-height:1.6;}
+  #forgotLink{display:inline-block;margin-top:12px;font-size:12px;color:var(--muted);text-decoration:underline;cursor:pointer;}
 
   /* ---------- 主界面 ---------- */
   #app{display:none; max-width:640px; margin:0 auto; padding:0 0 90px;}
@@ -43,7 +44,12 @@
   #syncDot .dot{width:8px;height:8px;border-radius:50%;background:#7CFC9A;}
   #syncDot.syncing .dot{background:#FFD54F;}
   #syncDot.error .dot{background:#FF8A80;}
-  #lockBtn{background:rgba(255,255,255,.18);border:none;color:#fff;font-size:12px;padding:6px 10px;border-radius:8px;cursor:pointer;}
+  #menuBtn{background:rgba(255,255,255,.18);border:none;color:#fff;font-size:16px;padding:6px 11px;border-radius:8px;cursor:pointer;}
+  #menu{position:fixed;top:56px;right:12px;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);
+        display:none;z-index:25;overflow:hidden;min-width:150px;}
+  #menu button{display:block;width:100%;text-align:left;padding:13px 16px;font-size:14px;border:none;background:#fff;cursor:pointer;color:var(--ink);}
+  #menu button:active{background:#F5EFEB;}
+  #menu button+button{border-top:1px solid var(--line);}
 
   /* 月历 */
   #calCard{background:var(--card);margin:14px 14px 0;border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(60,20,25,.05);}
@@ -97,15 +103,15 @@
   /* 添加按钮 */
   #addBtn{position:fixed;right:18px;bottom:calc(24px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;
         background:var(--red);color:#fff;font-size:30px;border:none;box-shadow:0 6px 16px rgba(166,25,46,.35);
-        cursor:pointer;line-height:1;z-index:20;}
+        cursor:pointer;line-height:1;z-index:20;display:none;}
   #addBtn:active{background:var(--red-dark);}
 
-  /* 编辑弹层 */
-  #modalMask{position:fixed;inset:0;background:rgba(30,15,18,.45);display:none;z-index:30;
+  /* 弹层通用 */
+  .mask{position:fixed;inset:0;background:rgba(30,15,18,.45);display:none;z-index:30;
         align-items:flex-end;justify-content:center;}
-  #modal{background:#fff;width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+  .sheet{background:#fff;width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
         max-height:88vh;overflow-y:auto;}
-  #modal h3{margin:0 0 16px;font-size:17px;}
+  .sheet h3{margin:0 0 16px;font-size:17px;}
   .f-row{margin-bottom:14px;}
   .f-row label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;}
   .f-row input,.f-row textarea{width:100%;padding:11px 12px;font-size:15px;border:1.5px solid var(--line);
@@ -120,11 +126,23 @@
   .cat-opt.on[data-v="personal"]{border-color:var(--green);background:#E9F4EA;color:var(--green);font-weight:600;}
   .m-btns{display:flex;gap:10px;margin-top:6px;}
   .m-btns button{flex:1;padding:13px;font-size:15px;border-radius:10px;border:none;cursor:pointer;font-weight:600;}
-  #saveBtn{background:var(--red);color:#fff;}
-  #cancelBtn{background:#F3EDEA;color:var(--ink);}
-  #delBtn{background:#fff;color:var(--red);border:1.5px solid var(--red)!important;flex:0 0 84px;display:none;}
-  #toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(30,20,22,.85);color:#fff;
-        padding:9px 18px;border-radius:20px;font-size:13px;display:none;z-index:40;}
+  .btn-primary{background:var(--red);color:#fff;}
+  .btn-plain{background:#F3EDEA;color:var(--ink);}
+  .btn-danger{background:#fff;color:var(--red);border:1.5px solid var(--red)!important;flex:0 0 84px;}
+  #delBtn{display:none;}
+
+  /* 导入 */
+  #impText{min-height:120px;}
+  .imp-file{display:block;width:100%;padding:12px;border:1.5px dashed var(--line);border-radius:10px;
+        text-align:center;font-size:14px;color:var(--muted);cursor:pointer;margin-bottom:12px;}
+  .imp-item{display:flex;gap:8px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:14px;}
+  .imp-item .d{color:var(--red);font-weight:600;flex-shrink:0;font-variant-numeric:tabular-nums;}
+  .imp-item .tm{color:var(--muted);flex-shrink:0;}
+  .imp-item .ti{flex:1;word-break:break-all;}
+  .imp-hint{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px;}
+
+  #toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(30,20,22,.88);color:#fff;
+        padding:9px 18px;border-radius:20px;font-size:13px;display:none;z-index:40;max-width:80%;text-align:center;}
   footer{text-align:center;font-size:11px;color:var(--muted);margin-top:24px;line-height:1.7;}
 </style>
 </head>
@@ -134,24 +152,30 @@
 <div id="gate">
   <div class="gate-card">
     <div class="emblem">日</div>
-    <h1 id="gateTitle">个人日程</h1>
+    <h1 id="gateTitle">工作日程</h1>
     <p id="gateDesc">请输入密码进入</p>
     <div class="gate-err" id="gateErr"></div>
     <input type="password" id="pw1" placeholder="密码" autocomplete="current-password">
     <input type="password" id="pw2" placeholder="再输一次确认" style="display:none" autocomplete="new-password">
     <label class="remember" id="rememberRow"><input type="checkbox" id="rememberChk" checked>在这台设备上记住登录</label>
     <button class="gate-btn" id="gateBtn">进 入</button>
-    <div class="gate-tip">🔒 所有日程经密码加密后才上传同步，<br>服务器上只存密文，其他人拿到链接也看不到内容。</div>
+    <span id="forgotLink">忘记密码？</span>
+    <div class="gate-tip">🔒 日程经密码加密后才上传同步<br>服务器只存密文，其他人拿到链接也看不到内容</div>
   </div>
 </div>
 
 <!-- 主界面 -->
 <div id="app">
   <header>
-    <div class="title">个人日程</div>
+    <div class="title">工作日程</div>
     <div id="syncDot"><span class="dot"></span><span id="syncTxt">已同步</span></div>
-    <button id="lockBtn">🔒 退出</button>
+    <button id="menuBtn">⋯</button>
   </header>
+  <div id="menu">
+    <button id="mImport">📥 导入日程</button>
+    <button id="mPwd">🔑 修改密码</button>
+    <button id="mLock">🔒 退出登录</button>
+  </div>
 
   <div id="calCard">
     <div id="calHead">
@@ -170,14 +194,14 @@
 
   <div id="upSec"><h2>📌 即将到来</h2><div id="upList"></div></div>
 
-  <footer>本页为私人日程 · 数据加密存储 · 请勿转发链接</footer>
+  <footer>中国人民大学历史学院 · 个人工作日程<br>数据加密存储 · 请勿转发链接</footer>
 </div>
 
-<button id="addBtn" style="display:none">＋</button>
+<button id="addBtn">＋</button>
 
-<!-- 编辑弹层 -->
-<div id="modalMask">
-  <div id="modal">
+<!-- 任务编辑弹层 -->
+<div class="mask" id="modalMask">
+  <div class="sheet">
     <h3 id="modalTitle">添加任务</h3>
     <div class="f-row"><label>日期</label><input type="date" id="fDate"></div>
     <div class="f-row"><label>时间（可不填）</label><input type="time" id="fTime"></div>
@@ -191,9 +215,45 @@
     </div>
     <div class="f-row"><label>备注（地点、注意事项等，可不填）</label><textarea id="fNote" placeholder="如：教三 3205，带笔记本"></textarea></div>
     <div class="m-btns">
-      <button id="delBtn">删除</button>
-      <button id="cancelBtn">取消</button>
-      <button id="saveBtn">保存</button>
+      <button class="btn-danger" id="delBtn">删除</button>
+      <button class="btn-plain" id="cancelBtn">取消</button>
+      <button class="btn-primary" id="saveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 导入弹层 -->
+<div class="mask" id="impMask">
+  <div class="sheet">
+    <h3>导入日程</h3>
+    <div class="imp-hint">把日程文字粘贴到下面（每行一条，如「9月20日 14:00 党员大会 教三3205」），<br>或选择 .txt / .md 文件。含「党/团/支部」的条目自动归入「党团」。</div>
+    <textarea id="impText" placeholder="9月20日 14:00 支部党员大会 教三3205&#10;9月25日 主题团日活动&#10;2026-10-09 09:00 党委会"></textarea>
+    <label class="imp-file">📄 或点这里选择文件（.txt / .md）<input type="file" id="impFile" accept=".txt,.md,.csv,text/plain" style="display:none"></label>
+    <div class="m-btns">
+      <button class="btn-plain" id="impCancel">取消</button>
+      <button class="btn-primary" id="impParse">解析</button>
+    </div>
+    <div id="impPreview" style="display:none">
+      <div class="imp-hint" style="margin-top:14px">识别结果（点条目可去掉不导入的）：</div>
+      <div id="impList"></div>
+      <div class="m-btns">
+        <button class="btn-plain" id="impBack">返回</button>
+        <button class="btn-primary" id="impConfirm">确认导入</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 修改密码弹层 -->
+<div class="mask" id="pwdMask">
+  <div class="sheet">
+    <h3>修改密码</h3>
+    <div class="f-row"><label>新密码（至少4位）</label><input type="password" id="npw1" autocomplete="new-password"></div>
+    <div class="f-row"><label>再输一次</label><input type="password" id="npw2" autocomplete="new-password"></div>
+    <div class="gate-err" id="pwdErr"></div>
+    <div class="m-btns">
+      <button class="btn-plain" id="pwdCancel">取消</button>
+      <button class="btn-primary" id="pwdSave">确认修改</button>
     </div>
   </div>
 </div>
@@ -212,9 +272,10 @@ const LS_KEY    = "pd_schedule_key_v1";
 const $ = id => document.getElementById(id);
 const b64e = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const pad2 = n => String(n).padStart(2,"0");
 const todayStr = () => fmtDate(new Date());
-function fmtDate(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
-function toast(msg){ const t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(t._tm); t._tm=setTimeout(()=>t.style.display="none",1800); }
+function fmtDate(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(t._tm); t._tm=setTimeout(()=>t.style.display="none",2000); }
 
 /* ================= 加密（PBKDF2 + AES-GCM） ================= */
 let aesKey = null;
@@ -222,7 +283,7 @@ async function deriveKey(pw, salt){
   const enc = new TextEncoder();
   const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:150000, hash:"SHA-256"},
-        base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+        base, {name:"AES-GCM", length:256}, true, ["encrypt","decrypt"]);
 }
 async function encObj(key, obj){
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -252,47 +313,55 @@ async function cloudSave(store){
 }
 
 /* ================= 状态 ================= */
-let tasks = [];          // {id,date,time,title,cat,note,done}
+let tasks = [];
 let curMonth = new Date(); curMonth.setDate(1);
 let selDate = todayStr();
 let editId = null, fCat = "party";
-let saveTimer = null;
+let saveTimer = null, dirty = false;
 
 function setSync(state, txt){
   const d=$("syncDot"); d.className = state==="ok"?"":state;
   $("syncTxt").textContent = txt;
 }
 function scheduleSave(){
+  dirty = true;
   setSync("syncing","同步中…");
   clearTimeout(saveTimer);
   saveTimer = setTimeout(pushAll, 700);
 }
 async function pushAll(){
+  if(!aesKey) return;
   try{
     const saltB64 = localStorage.getItem(LS_KEY+"_salt");
-    const salt = b64d(saltB64);
     const store = {v:1, salt:saltB64,
       ver: await encObj(aesKey, "SCHEDULE-OK"),
       data: await encObj(aesKey, tasks)};
     await cloudSave(store);
     localStorage.setItem(LS_KEY+"_cache", JSON.stringify(store));
+    dirty = false;
     setSync("ok","已同步");
   }catch(e){
     setSync("error","未同步(网络)");
   }
 }
+async function rememberKey(){
+  if(!$("rememberChk").checked){ localStorage.removeItem(LS_KEY+"_jwk"); return; }
+  const raw = await crypto.subtle.exportKey("raw", aesKey);
+  localStorage.setItem(LS_KEY+"_jwk", b64e(raw));
+}
 
 /* ================= 密码门 ================= */
 let isSetup = false, gateSalt = null;
 async function initGate(){
-  $("app").style.display="none"; $("addBtn").style.display="none"; $("gate").style.display="flex";
+  $("app").style.display="none"; $("addBtn").style.display="none"; $("menu").style.display="none";
+  $("gate").style.display="flex";
   // 记住登录：直接恢复 key
   const savedKey = localStorage.getItem(LS_KEY+"_jwk");
   const cached = localStorage.getItem(LS_KEY+"_cache");
   if(savedKey && cached){
     try{
-      const raw = Uint8Array.from(atob(savedKey), c=>c.charCodeAt(0));
-      aesKey = await crypto.subtle.importKey("raw", raw, {name:"AES-GCM"}, false, ["encrypt","decrypt"]);
+      const raw = b64d(savedKey);
+      aesKey = await crypto.subtle.importKey("raw", raw, {name:"AES-GCM"}, true, ["encrypt","decrypt"]);
       const store = JSON.parse(cached);
       const v = await decObj(aesKey, store.ver);
       if(v === "SCHEDULE-OK"){ tasks = await decObj(aesKey, store.data); enterApp(); backgroundPull(); return; }
@@ -302,23 +371,18 @@ async function initGate(){
   try{
     const store = await cloudLoad();
     if(store && store.salt){
-      isSetup = false; gateSalt = b64d(store.salt);
+      gateSalt = b64d(store.salt);
       localStorage.setItem(LS_KEY+"_salt", store.salt);
       localStorage.setItem(LS_KEY+"_cache", JSON.stringify(store));
-      $("gateDesc").textContent = "请输入密码进入";
-      $("pw2").style.display="none";
-      $("gateBtn").textContent = "进 入";
-      $("gateTitle").textContent = "个人日程";
+      pwMode("请输入密码进入");
     }else{
       setupMode();
     }
   }catch(e){
-    // 网络失败：用本地缓存进入
     if(cached){
       const store = JSON.parse(cached);
-      isSetup=false; gateSalt=b64d(store.salt);
-      $("gateDesc").textContent="离线模式 · 请输入密码";
-      $("pw2").style.display="none"; $("gateBtn").textContent="进 入";
+      gateSalt = b64d(store.salt);
+      pwMode("离线模式 · 请输入密码");
     }else{
       $("gateDesc").textContent="网络异常，请检查网络后刷新";
       $("gateBtn").textContent="重 试";
@@ -330,15 +394,31 @@ async function initGate(){
   $("pw1").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
   $("pw2").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
 }
+function pwMode(desc){
+  isSetup = false;
+  $("gateTitle").textContent = "工作日程";
+  $("gateDesc").textContent = desc;
+  $("pw1").placeholder = "密码"; $("pw1").value=""; $("pw2").value="";
+  $("pw2").style.display="none";
+  $("gateBtn").textContent = "进 入";
+  $("forgotLink").style.display = "inline-block";
+}
 function setupMode(){
   isSetup = true;
-  $("gateTitle").textContent = "首次使用 · 设置密码";
-  $("gateDesc").textContent = "这个密码只有你知道，请务必记住\n（忘记密码将无法恢复日程）";
-  $("pw1").placeholder = "设置一个密码"; $("pw1").autocomplete="new-password";
+  $("gateTitle").textContent = "设置新密码";
+  $("gateDesc").textContent = "请设置一个只有你知道的密码\n（忘记密码将无法找回已有日程）";
+  $("pw1").placeholder = "设置一个密码"; $("pw1").value=""; $("pw2").value="";
   $("pw2").style.display="block";
   $("gateBtn").textContent = "设置并进入";
+  $("forgotLink").style.display = "none";
   $("gateBtn").onclick = onGateSubmit;
 }
+$("forgotLink").onclick = ()=>{
+  if(confirm("忘记密码只能重置：云端已存的日程将无法解密、会被清空，且不可恢复。\n\n确定要重置并设置新密码吗？")){
+    setupMode();
+    toast("请设置新密码");
+  }
+};
 async function onGateSubmit(){
   $("gateErr").textContent = "";
   const pw = $("pw1").value;
@@ -350,39 +430,23 @@ async function onGateSubmit(){
     aesKey = await deriveKey(pw, gateSalt);
     tasks = [];
     enterApp();
-    maybeRemember();
+    rememberKey();
     await pushAll();
     toast("密码设置成功");
   }else{
-    aesKey = await deriveKey(pw, gateSalt);
+    const key = await deriveKey(pw, gateSalt);
     try{
       const cached = JSON.parse(localStorage.getItem(LS_KEY+"_cache"));
-      const v = await decObj(aesKey, cached.ver);
+      const v = await decObj(key, cached.ver);
       if(v !== "SCHEDULE-OK") throw 0;
+      aesKey = key;
       tasks = await decObj(aesKey, cached.data);
-      enterApp(); maybeRemember(); backgroundPull();
+      enterApp(); rememberKey(); backgroundPull();
     }catch(e){
       $("gateErr").textContent = "密码不正确，请重试";
-      aesKey = null;
     }
   }
 }
-async function maybeRemember(){ /* 在下方重定义（派生 key 需可导出） */ }
-</script>
-<script>
-/* 派生时使用可导出 key（用于"记住登录"），并覆盖上面的占位函数 */
-const _deriveKey = deriveKey;
-deriveKey = async function(pw, salt){
-  const enc = new TextEncoder();
-  const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:150000, hash:"SHA-256"},
-        base, {name:"AES-GCM", length:256}, true, ["encrypt","decrypt"]);
-};
-maybeRemember = async function(){
-  if(!$("rememberChk").checked){ localStorage.removeItem(LS_KEY+"_jwk"); return; }
-  const raw = await crypto.subtle.exportKey("raw", aesKey);
-  localStorage.setItem(LS_KEY+"_jwk", b64e(raw));
-};
 
 /* ================= 主界面渲染 ================= */
 const CAT_NAME = {party:"党团", work:"工作", personal:"个人"};
@@ -392,15 +456,16 @@ function enterApp(){
   $("gate").style.display="none";
   $("app").style.display="block";
   $("addBtn").style.display="block";
-  setSync("ok","已同步");
+  setSync(dirty?"syncing":"ok", dirty?"同步中…":"已同步");
   renderAll();
 }
 async function backgroundPull(){
+  if(dirty) return; // 有未同步的本地修改，跳过本次拉取
   try{
     const store = await cloudLoad();
-    if(!store || !store.ver) return;
+    if(!store || !store.ver || dirty) return;
     const v = await decObj(aesKey, store.ver);
-    if(v === "SCHEDULE-OK"){
+    if(v === "SCHEDULE-OK" && !dirty){
       tasks = await decObj(aesKey, store.data);
       localStorage.setItem(LS_KEY+"_cache", JSON.stringify(store));
       renderAll(); setSync("ok","已同步");
@@ -413,7 +478,7 @@ function renderCal(){
   const y = curMonth.getFullYear(), m = curMonth.getMonth();
   $("ymLabel").textContent = y+" 年 "+(m+1)+" 月";
   const first = new Date(y, m, 1);
-  const startOffset = (first.getDay()+6)%7; // 周一为首
+  const startOffset = (first.getDay()+6)%7;
   const daysIn = new Date(y, m+1, 0).getDate();
   const prevDays = new Date(y, m, 0).getDate();
   const grid = $("calGrid"); grid.innerHTML = "";
@@ -433,7 +498,7 @@ function renderCal(){
     if(dayTasks.length){
       const dots = document.createElement("span"); dots.className="dots";
       [...new Set(dayTasks.map(t=>t.cat))].slice(0,3).forEach(c=>{
-        const i2=document.createElement("i"); i2.style.background=CAT_COLOR[c]; dots.appendChild(i2);
+        const dot=document.createElement("i"); dot.style.background=CAT_COLOR[c]; dots.appendChild(dot);
       });
       btn.appendChild(dots);
     }
@@ -453,7 +518,7 @@ function renderDay(){
   const list = tasks.filter(t=>t.date===selDate).sort((a,b)=>(a.time||"99")<(b.time||"99")?-1:1);
   const box = $("dayList"); box.innerHTML="";
   if(!list.length){
-    box.innerHTML = '<div id="emptyDay">这一天还没有安排<br>点右下角 ＋ 添加</div>';
+    box.innerHTML = '<div id="emptyDay">这一天还没有安排<br>点右下角 ＋ 添加，或点右上角 ⋯ 批量导入</div>';
     return;
   }
   list.forEach(t=> box.appendChild(taskEl(t)));
@@ -496,7 +561,7 @@ function renderUpcoming(){
   });
 }
 
-/* ================= 弹层编辑 ================= */
+/* ================= 任务编辑弹层 ================= */
 function openModal(task){
   editId = task ? task.id : null;
   $("modalTitle").textContent = task ? "编辑任务" : "添加任务";
@@ -509,14 +574,13 @@ function openModal(task){
   $("delBtn").style.display = task ? "block" : "none";
   $("modalMask").style.display = "flex";
 }
-function closeModal(){ $("modalMask").style.display="none"; }
 document.querySelectorAll(".cat-opt").forEach(o=> o.onclick = ()=>{
   fCat = o.dataset.v;
   document.querySelectorAll(".cat-opt").forEach(x=>x.classList.toggle("on", x===o));
 });
 $("addBtn").onclick = ()=>openModal(null);
-$("cancelBtn").onclick = closeModal;
-$("modalMask").onclick = e=>{ if(e.target===$("modalMask")) closeModal(); };
+$("cancelBtn").onclick = ()=> $("modalMask").style.display="none";
+$("modalMask").onclick = e=>{ if(e.target===$("modalMask")) $("modalMask").style.display="none"; };
 $("saveBtn").onclick = ()=>{
   const title = $("fTitle").value.trim();
   if(!title){ toast("请填写事项内容"); return; }
@@ -524,32 +588,137 @@ $("saveBtn").onclick = ()=>{
                 cat:fCat, note:$("fNote").value.trim()};
   if(editId){
     const t = tasks.find(x=>x.id===editId);
-    Object.assign(t, data);
+    if(t) Object.assign(t, data);
   }else{
     tasks.push(Object.assign({id:Date.now()+"-"+Math.random().toString(36).slice(2,7), done:false}, data));
   }
   selDate = data.date;
   curMonth = new Date(+data.date.slice(0,4), +data.date.slice(5,7)-1, 1);
-  closeModal(); renderAll(); scheduleSave();
+  $("modalMask").style.display="none";
+  renderAll(); scheduleSave();
   toast("已保存");
 };
 $("delBtn").onclick = ()=>{
   if(!editId) return;
   if(!confirm("确定删除这条任务吗？")) return;
   tasks = tasks.filter(x=>x.id!==editId);
-  closeModal(); renderAll(); scheduleSave();
+  $("modalMask").style.display="none";
+  renderAll(); scheduleSave();
   toast("已删除");
+};
+
+/* ================= 菜单 ================= */
+$("menuBtn").onclick = e=>{
+  e.stopPropagation();
+  const m=$("menu"); m.style.display = m.style.display==="block" ? "none" : "block";
+};
+document.addEventListener("click", ()=>{ $("menu").style.display="none"; });
+$("mLock").onclick = ()=>{
+  if(confirm("退出并清除本设备上的记住登录？\n（日程保存在云端，不会丢失）")){
+    localStorage.removeItem(LS_KEY+"_jwk");
+    aesKey=null; tasks=[]; location.reload();
+  }
+};
+
+/* ================= 修改密码 ================= */
+$("mPwd").onclick = ()=>{
+  $("npw1").value=""; $("npw2").value=""; $("pwdErr").textContent="";
+  $("pwdMask").style.display="flex";
+};
+$("pwdCancel").onclick = ()=> $("pwdMask").style.display="none";
+$("pwdMask").onclick = e=>{ if(e.target===$("pwdMask")) $("pwdMask").style.display="none"; };
+$("pwdSave").onclick = async ()=>{
+  const a=$("npw1").value, b=$("npw2").value;
+  if(a.length<4){ $("pwdErr").textContent="密码至少 4 位"; return; }
+  if(a!==b){ $("pwdErr").textContent="两次输入不一致"; return; }
+  $("pwdErr").textContent="";
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  localStorage.setItem(LS_KEY+"_salt", b64e(salt));
+  aesKey = await deriveKey(a, salt);
+  await rememberKey(); // 用新 key 更新本机记忆
+  $("pwdMask").style.display="none";
+  await pushAll();
+  toast("密码已修改，下次用新密码登录");
+};
+
+/* ================= 导入 ================= */
+let impParsed = [];
+$("mImport").onclick = ()=>{
+  $("impText").value=""; $("impPreview").style.display="none"; $("impList").innerHTML="";
+  $("impMask").style.display="flex";
+};
+$("impCancel").onclick = ()=> $("impMask").style.display="none";
+$("impMask").onclick = e=>{ if(e.target===$("impMask")) $("impMask").style.display="none"; };
+$("impFile").onchange = e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{ $("impText").value = rd.result; toast("文件已读取，点「解析」"); };
+  rd.readAsText(f, "UTF-8");
+  e.target.value = "";
+};
+function parseImport(text){
+  const curYear = new Date().getFullYear();
+  const out = []; let lastDate = null;
+  for(const raw of text.split(/\r?\n/)){
+    let ln = raw.trim();
+    if(!ln) continue;
+    let date=null, time=null, m;
+    if(m = ln.match(/(20\d{2})\s*[-年\/.]\s*(\d{1,2})\s*[-月\/.]\s*(\d{1,2})\s*[日号]?/)){
+      date = m[1]+"-"+pad2(m[2])+"-"+pad2(m[3]);
+      ln = ln.replace(m[0], " ");
+    }else if(m = ln.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]/)){
+      date = curYear+"-"+pad2(m[1])+"-"+pad2(m[2]);
+      ln = ln.replace(m[0], " ");
+    }
+    if(date) lastDate = date; else date = lastDate;
+    if(m = ln.match(/(上午|下午|晚上|中午)?\s*([01]?\d|2[0-3])\s*[:：点]\s*([0-5]\d)?\s*分?/)){
+      let hh = +m[2];
+      if((m[1]==="下午"||m[1]==="晚上") && hh<12) hh += 12;
+      if(m[1]==="中午" && hh<6) hh += 12;
+      time = pad2(hh)+":"+(m[3]||"00");
+      ln = ln.replace(m[0], " ");
+    }
+    const title = ln.replace(/^[\s\-—–、，,：:;；.（）()【】\[\]]+/, "").replace(/\s+/g," ").trim();
+    if(!title || !date) continue;
+    let cat = "work";
+    if(/党|团|支部|党课|团课|组织生活|主题党日|党员/.test(raw)) cat = "party";
+    out.push({date, time, title, cat, note:"", done:false,
+              id: Date.now()+"-"+Math.random().toString(36).slice(2,7)});
+  }
+  return out;
+}
+$("impParse").onclick = ()=>{
+  impParsed = parseImport($("impText").value);
+  if(!impParsed.length){ toast("没识别出条目：每行需要带日期（如 9月20日 或 2026-09-20）"); return; }
+  const box = $("impList"); box.innerHTML="";
+  impParsed.forEach(t=>{
+    const el = document.createElement("div"); el.className="imp-item";
+    el.innerHTML = '<span class="d">'+t.date.slice(5).replace("-","/")+'</span>'+
+      '<span class="tm">'+(t.time||"")+'</span><span class="ti"></span>'+
+      '<span class="t-cat '+t.cat+'">'+CAT_NAME[t.cat]+'</span>';
+    el.querySelector(".ti").textContent = t.title;
+    el.onclick = ()=>{ t._skip=!t._skip; el.style.opacity = t._skip?".35":"1"; };
+    box.appendChild(el);
+  });
+  $("impPreview").style.display="block";
+};
+$("impBack").onclick = ()=>{ $("impPreview").style.display="none"; };
+$("impConfirm").onclick = ()=>{
+  const add = impParsed.filter(t=>!t._skip);
+  tasks = tasks.concat(add);
+  $("impMask").style.display="none";
+  if(add.length){
+    const last = add[add.length-1];
+    selDate = last.date;
+    curMonth = new Date(+last.date.slice(0,4), +last.date.slice(5,7)-1, 1);
+  }
+  renderAll(); scheduleSave();
+  toast("已导入 "+add.length+" 条");
 };
 
 /* ================= 其他 ================= */
 $("prevM").onclick = ()=>{ curMonth.setMonth(curMonth.getMonth()-1); renderCal(); };
 $("nextM").onclick = ()=>{ curMonth.setMonth(curMonth.getMonth()+1); renderCal(); };
-$("lockBtn").onclick = ()=>{
-  if(confirm("退出并清除本设备上的记住登录？（日程本身保存在云端，不会丢失）")){
-    localStorage.removeItem(LS_KEY+"_jwk");
-    aesKey=null; tasks=[]; location.reload();
-  }
-};
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && aesKey) backgroundPull(); });
 
 initGate();
