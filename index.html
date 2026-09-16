@@ -195,7 +195,7 @@
       <div class="tip">以后忘记密码，用它就能找回全部日程和文件</div>
     </div>
     <div class="gate-err" id="gateErr"></div>
-    <input type="text" id="nickInput" placeholder="你的昵称（如：王老师）" autocomplete="off" style="letter-spacing:0">
+    <input type="text" id="nickInput" placeholder="你的昵称" autocomplete="off" style="letter-spacing:0">
     <input type="password" id="pw1" placeholder="密码" autocomplete="current-password">
     <input type="password" id="pw2" placeholder="再输一次确认" style="display:none" autocomplete="new-password">
     <input type="text" id="rcInput" placeholder="输入 12 位找回码（空格可有可无）" style="display:none;letter-spacing:1px" autocomplete="off">
@@ -568,7 +568,7 @@ async function onGateSubmit(){
   if(gateMode === "pw"){
     const nk = $("nickInput").value.trim();
     const pw = $("pw1").value;
-    if(!nk){ $("gateErr").textContent="请填写你的昵称（如：王老师）"; return; }
+    if(!nk){ $("gateErr").textContent="请填写你的昵称"; return; }
     if(pw.length < 4){ $("gateErr").textContent="密码至少 4 位"; return; }
     nick = nk;
     slotFile = await slotOf(nick);
