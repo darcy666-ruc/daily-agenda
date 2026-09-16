@@ -34,6 +34,9 @@
   .remember input{width:auto;margin:0;}
   .gate-tip{font-size:12px;color:var(--muted);margin-top:16px;line-height:1.6;}
   #forgotLink{display:inline-block;margin-top:12px;font-size:12px;color:var(--muted);text-decoration:underline;cursor:pointer;}
+  #rcShow{background:#FDF6E8;border:1.5px dashed #D9B968;border-radius:12px;padding:16px;margin-bottom:14px;display:none;}
+  #rcShow .code{font-size:24px;font-weight:700;letter-spacing:2px;color:var(--red);font-variant-numeric:tabular-nums;margin:6px 0;}
+  #rcShow .tip{font-size:12px;color:#8a6d1a;line-height:1.6;}
 
   /* ---------- 主界面 ---------- */
   #app{display:none; max-width:640px; margin:0 auto; padding:0 0 90px;}
@@ -46,7 +49,7 @@
   #syncDot.error .dot{background:#FF8A80;}
   #menuBtn{background:rgba(255,255,255,.18);border:none;color:#fff;font-size:16px;padding:6px 11px;border-radius:8px;cursor:pointer;}
   #menu{position:fixed;top:56px;right:12px;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);
-        display:none;z-index:25;overflow:hidden;min-width:150px;}
+        display:none;z-index:25;overflow:hidden;min-width:160px;}
   #menu button{display:block;width:100%;text-align:left;padding:13px 16px;font-size:14px;border:none;background:#fff;cursor:pointer;color:var(--ink);}
   #menu button:active{background:#F5EFEB;}
   #menu button+button{border-top:1px solid var(--line);}
@@ -92,8 +95,6 @@
   .t-note{font-size:13px;color:var(--muted);margin-top:4px;white-space:pre-wrap;word-break:break-all;}
   #emptyDay{text-align:center;color:var(--muted);font-size:13px;padding:26px 0;background:var(--card);border-radius:12px;
         border:1.5px dashed var(--line);}
-
-  /* 当日的文件小条 */
   .dayfile{display:flex;align-items:center;gap:8px;background:#FDF9F4;border:1px solid #F0E6D2;border-radius:10px;
         padding:8px 12px;margin-bottom:8px;font-size:13px;cursor:pointer;}
   .dayfile .ic{flex-shrink:0;}
@@ -119,7 +120,6 @@
   .lib-item .nm{flex:1;word-break:break-all;font-weight:600;}
   .lib-item .mt{font-size:11px;color:var(--muted);flex-shrink:0;text-align:right;line-height:1.4;}
   .lib-empty{font-size:13px;color:var(--muted);padding:8px 2px;}
-  .hit{background:#FFF3C4;border-radius:2px;}
 
   /* 添加按钮 */
   #addBtn{position:fixed;right:18px;bottom:calc(24px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;
@@ -169,6 +169,11 @@
   #viewText{background:#FAF7F5;border-radius:10px;padding:14px;font-size:13px;line-height:1.8;
         white-space:pre-wrap;word-break:break-all;max-height:46vh;overflow-y:auto;border:1px solid var(--line);}
 
+  /* 找回码查看弹层 */
+  #rcBig{font-size:26px;font-weight:700;letter-spacing:2px;color:var(--red);text-align:center;
+        font-variant-numeric:tabular-nums;padding:18px 0 6px;}
+  #rcTip{font-size:12px;color:var(--muted);text-align:center;line-height:1.7;padding-bottom:10px;}
+
   #toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(30,20,22,.88);color:#fff;
         padding:9px 18px;border-radius:20px;font-size:13px;display:none;z-index:40;max-width:80%;text-align:center;}
   footer{text-align:center;font-size:11px;color:var(--muted);margin-top:24px;line-height:1.7;}
@@ -182,9 +187,15 @@
     <div class="emblem">日</div>
     <h1 id="gateTitle">工作日程</h1>
     <p id="gateDesc">请输入密码进入</p>
+    <div id="rcShow">
+      <div class="tip">🆘 这是你的找回码，请立刻<b>拍照或抄下来</b>保存好</div>
+      <div class="code" id="rcCode"></div>
+      <div class="tip">以后忘记密码，用它就能找回全部日程和文件</div>
+    </div>
     <div class="gate-err" id="gateErr"></div>
     <input type="password" id="pw1" placeholder="密码" autocomplete="current-password">
     <input type="password" id="pw2" placeholder="再输一次确认" style="display:none" autocomplete="new-password">
+    <input type="text" id="rcInput" placeholder="输入 12 位找回码（空格可有可无）" style="display:none;letter-spacing:1px" autocomplete="off">
     <label class="remember" id="rememberRow"><input type="checkbox" id="rememberChk" checked>在这台设备上记住登录</label>
     <button class="gate-btn" id="gateBtn">进 入</button>
     <span id="forgotLink">忘记密码？</span>
@@ -201,6 +212,7 @@
   </header>
   <div id="menu">
     <button id="mImport">📥 导入日程/文件</button>
+    <button id="mRc">🆘 查看找回码</button>
     <button id="mPwd">🔑 修改密码</button>
     <button id="mLock">🔒 退出登录</button>
   </div>
@@ -268,7 +280,7 @@
     <label class="imp-file">📄 选择文件（Word / Excel / PPT / txt，可多选）<input type="file" id="impFile" multiple
       accept=".txt,.md,.csv,.docx,.pptx,.xlsx,text/plain" style="display:none"></label>
     <div id="impSaved"></div>
-    <div class="imp-hint">文件原件会存入下方「文件库」，同时自动把文字内容提取到下面，<br>点「解析」可转成日程（每行一条，如「9月20日 14:00 党员大会 教三3205」）。</div>
+    <div class="imp-hint">文件原件会存入下方「文件库」，同时自动把文字内容提取到下面，<br>点「解析成日程」可把每行带日期的内容转成日程（如「9月20日 14:00 党员大会 教三3205」）。</div>
     <textarea id="impText" placeholder="9月20日 14:00 支部党员大会 教三3205&#10;9月25日 主题团日活动&#10;2026-10-09 09:00 党委会"></textarea>
     <div class="m-btns">
       <button class="btn-plain" id="impCancel">关闭</button>
@@ -291,10 +303,23 @@
     <h3>修改密码</h3>
     <div class="f-row"><label>新密码（至少4位）</label><input type="password" id="npw1" autocomplete="new-password"></div>
     <div class="f-row"><label>再输一次</label><input type="password" id="npw2" autocomplete="new-password"></div>
+    <div class="imp-hint">修改密码不影响找回码，日程和文件全部保留。</div>
     <div class="gate-err" id="pwdErr"></div>
     <div class="m-btns">
       <button class="btn-plain" id="pwdCancel">取消</button>
       <button class="btn-primary" id="pwdSave">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- 找回码查看弹层 -->
+<div class="mask" id="rcMask">
+  <div class="sheet">
+    <h3>🆘 找回码</h3>
+    <div id="rcBig"></div>
+    <div id="rcTip">忘记密码时，在登录页点「忘记密码」输入它，<br>即可重设密码并保留全部日程和文件。<br>建议拍照或抄写保存。</div>
+    <div class="m-btns">
+      <button class="btn-primary" id="rcClose">我知道了</button>
     </div>
   </div>
 </div>
@@ -334,7 +359,7 @@ const GIST_ID   = "0f8a99122a531fae448c779ad444c591";
 const GIST_FILE = "store.json";
 // token 分段 base64 存放（仅 gist 权限；数据已加密，拿到 token 也读不到内容）
 const GH_TOKEN  = (()=>{ const a="Z2hvX2NRY1AxTWtia0cwQkpJTDRC", b="eHdyUDBERUk4azlSUzFtUEdSTg=="; return atob(a+b); })();
-const LS_KEY    = "pd_schedule_key_v1";
+const LS_KEY    = "pd_schedule_key_v3";
 
 /* ================= 工具 ================= */
 const $ = id => document.getElementById(id);
@@ -347,14 +372,20 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.style.display="blo
 function fmtSize(n){ return n<1024? n+"B" : n<1048576? (n/1024).toFixed(0)+"KB" : (n/1048576).toFixed(1)+"MB"; }
 function escHtml(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 const FILE_ICON = {docx:"📝", pptx:"📊", xlsx:"📈", txt:"📄", md:"📄", csv:"📈"};
+function fmtRc(rc){ return rc.replace(/(\d{4})(\d{4})(\d{4})/, "$1 $2 $3"); }
 
-/* ================= 加密（PBKDF2 + AES-GCM） ================= */
-let aesKey = null;
-async function deriveKey(pw, salt){
+/* ================= 加密：数据用随机 DEK 加密，DEK 分别被密码和找回码包裹 =================
+   store = {v:3, salt, wrapPw:{iv,c}, saltR, wrapRc:{iv,c}, data:{iv,c}}
+   忘记密码 → 找回码解出 DEK → 数据原样保留，只需重设密码 */
+let DEK = null;       // CryptoKey（数据加密密钥）
+let dekRawB64 = null; // DEK 原始字节（改密码时重新包裹用）
+let myRc = null;      // 找回码（从解密数据里读出）
+
+async function deriveKek(pw, salt){
   const enc = new TextEncoder();
   const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:150000, hash:"SHA-256"},
-        base, {name:"AES-GCM", length:256}, true, ["encrypt","decrypt"]);
+        base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
 }
 async function encObj(key, obj){
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -364,6 +395,20 @@ async function encObj(key, obj){
 async function decObj(key, pack){
   const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64d(pack.iv)}, key, b64d(pack.c));
   return JSON.parse(new TextDecoder().decode(pt));
+}
+async function importDek(rawB64){
+  dekRawB64 = rawB64;
+  DEK = await crypto.subtle.importKey("raw", b64d(rawB64), {name:"AES-GCM"}, true, ["encrypt","decrypt"]);
+}
+async function newDek(){
+  const raw = crypto.getRandomValues(new Uint8Array(32));
+  await importDek(b64e(raw));
+}
+function genRc(){
+  let s = "";
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  for(const b of bytes) s += (b % 10);
+  return s; // 12位数字
 }
 
 /* ================= 云端存储（GitHub Gist） ================= */
@@ -385,16 +430,17 @@ async function cloudSave(store){
 
 /* ================= 状态 ================= */
 let tasks = [];
-let files = [];        // {id,name,ext,size,date,text,dataB64}
+let files = [];
 let curMonth = new Date(); curMonth.setDate(1);
 let selDate = todayStr();
 let editId = null, fCat = "party";
 let saveTimer = null, dirty = false;
+let storeMeta = null;  // {salt, saltR} 当前云端的盐
 
-function packData(){ return {tasks, files}; }
+function packData(){ return {tasks, files, rc: myRc}; }
 function unpackData(d){
-  if(Array.isArray(d)){ tasks = d; files = []; }   // 旧版兼容
-  else { tasks = d.tasks || []; files = d.files || []; }
+  if(Array.isArray(d)){ tasks = d; files = []; }
+  else { tasks = d.tasks || []; files = d.files || []; myRc = d.rc || myRc; }
 }
 
 function setSync(state, txt){
@@ -408,12 +454,14 @@ function scheduleSave(){
   saveTimer = setTimeout(pushAll, 700);
 }
 async function pushAll(){
-  if(!aesKey) return;
+  if(!DEK || !storeMeta) return;
   try{
-    const saltB64 = localStorage.getItem(LS_KEY+"_salt");
-    const store = {v:2, salt:saltB64,
-      ver: await encObj(aesKey, "SCHEDULE-OK"),
-      data: await encObj(aesKey, packData())};
+    const kekPw = await deriveKek(curPw, b64d(storeMeta.salt));
+    const kekRc = await deriveKek(myRc, b64d(storeMeta.saltR));
+    const store = {v:3, salt:storeMeta.salt, saltR:storeMeta.saltR,
+      wrapPw: await encObj(kekPw, {k: dekRawB64}),
+      wrapRc: await encObj(kekRc, {k: dekRawB64}),
+      data: await encObj(DEK, packData())};
     await cloudSave(store);
     localStorage.setItem(LS_KEY+"_cache", JSON.stringify(store));
     dirty = false;
@@ -424,12 +472,14 @@ async function pushAll(){
 }
 async function rememberKey(){
   if(!$("rememberChk").checked){ localStorage.removeItem(LS_KEY+"_jwk"); return; }
-  const raw = await crypto.subtle.exportKey("raw", aesKey);
-  localStorage.setItem(LS_KEY+"_jwk", b64e(raw));
+  localStorage.setItem(LS_KEY+"_jwk", dekRawB64);
 }
 
 /* ================= 密码门 ================= */
-let isSetup = false, gateSalt = null;
+let gateMode = "pw";  // pw | setup | recover | recoverNew
+let curPw = null;
+let pendingRc = null; // 找回码验证通过后暂存
+
 async function initGate(){
   $("app").style.display="none"; $("addBtn").style.display="none"; $("menu").style.display="none";
   $("gate").style.display="flex";
@@ -437,18 +487,17 @@ async function initGate(){
   const cached = localStorage.getItem(LS_KEY+"_cache");
   if(savedKey && cached){
     try{
-      const raw = b64d(savedKey);
-      aesKey = await crypto.subtle.importKey("raw", raw, {name:"AES-GCM"}, true, ["encrypt","decrypt"]);
       const store = JSON.parse(cached);
-      const v = await decObj(aesKey, store.ver);
-      if(v === "SCHEDULE-OK"){ unpackData(await decObj(aesKey, store.data)); enterApp(); backgroundPull(); return; }
+      await importDek(savedKey);
+      storeMeta = {salt: store.salt, saltR: store.saltR};
+      unpackData(await decObj(DEK, store.data));
+      enterApp(); backgroundPull(); return;
     }catch(e){ localStorage.removeItem(LS_KEY+"_jwk"); }
   }
   try{
     const store = await cloudLoad();
-    if(store && store.salt){
-      gateSalt = b64d(store.salt);
-      localStorage.setItem(LS_KEY+"_salt", store.salt);
+    if(store && store.salt && store.wrapPw){
+      storeMeta = {salt: store.salt, saltR: store.saltR};
       localStorage.setItem(LS_KEY+"_cache", JSON.stringify(store));
       pwMode("请输入密码进入");
     }else{
@@ -457,7 +506,7 @@ async function initGate(){
   }catch(e){
     if(cached){
       const store = JSON.parse(cached);
-      gateSalt = b64d(store.salt);
+      storeMeta = {salt: store.salt, saltR: store.saltR};
       pwMode("离线模式 · 请输入密码");
     }else{
       $("gateDesc").textContent="网络异常，请检查网络后刷新";
@@ -469,57 +518,111 @@ async function initGate(){
   $("gateBtn").onclick = onGateSubmit;
   $("pw1").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
   $("pw2").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
+  $("rcInput").onkeydown = e=>{ if(e.key==="Enter") onGateSubmit(); };
+}
+function gateBase(){
+  $("rcShow").style.display="none";
+  $("rcInput").style.display="none"; $("rcInput").value="";
+  $("gateErr").textContent = "";
+  $("forgotLink").style.display = "inline-block";
+  $("rememberRow").style.display = "flex";
 }
 function pwMode(desc){
-  isSetup = false;
+  gateMode = "pw"; gateBase();
   $("gateTitle").textContent = "工作日程";
   $("gateDesc").textContent = desc;
   $("pw1").placeholder = "密码"; $("pw1").value=""; $("pw2").value="";
-  $("pw2").style.display="none";
+  $("pw1").style.display="block"; $("pw2").style.display="none";
   $("gateBtn").textContent = "进 入";
-  $("forgotLink").style.display = "inline-block";
 }
-function setupMode(){
-  isSetup = true;
+function setupMode(keepData){
+  // keepData=true 表示找回码已验证，数据保留，只是重设密码
+  gateMode = keepData ? "recoverNew" : "setup";
+  gateBase();
   $("gateTitle").textContent = "设置新密码";
-  $("gateDesc").textContent = "请设置一个只有你知道的密码\n（忘记密码将无法找回已有内容）";
+  $("gateDesc").textContent = keepData
+    ? "找回码验证通过 ✅\n日程和文件都会保留，请设置一个新密码"
+    : "请设置一个只有你知道的密码";
   $("pw1").placeholder = "设置一个密码"; $("pw1").value=""; $("pw2").value="";
-  $("pw2").style.display="block";
+  $("pw1").style.display="block"; $("pw2").style.display="block";
   $("gateBtn").textContent = "设置并进入";
   $("forgotLink").style.display = "none";
   $("gateBtn").onclick = onGateSubmit;
 }
-$("forgotLink").onclick = ()=>{
-  if(confirm("忘记密码只能重置：云端已存的日程和文件将无法解密、会被清空，且不可恢复。\n\n确定要重置并设置新密码吗？")){
-    setupMode();
-    toast("请设置新密码");
-  }
-};
+function recoverMode(){
+  gateMode = "recover"; gateBase();
+  $("gateTitle").textContent = "找回密码";
+  $("gateDesc").textContent = "输入你的 12 位找回码\n（设密码时页面给过，日程和文件都会保留）";
+  $("pw1").style.display="none"; $("pw2").style.display="none";
+  $("rcInput").style.display="block";
+  $("rememberRow").style.display = "none";
+  $("gateBtn").textContent = "验 证";
+  $("gateBtn").onclick = onGateSubmit;
+}
+$("forgotLink").onclick = ()=> recoverMode();
+
 async function onGateSubmit(){
   $("gateErr").textContent = "";
-  const pw = $("pw1").value;
-  if(pw.length < 4){ $("gateErr").textContent="密码至少 4 位"; return; }
-  if(isSetup){
-    if(pw !== $("pw2").value){ $("gateErr").textContent="两次输入不一致"; return; }
-    gateSalt = crypto.getRandomValues(new Uint8Array(16));
-    localStorage.setItem(LS_KEY+"_salt", b64e(gateSalt));
-    aesKey = await deriveKey(pw, gateSalt);
-    tasks = []; files = [];
-    enterApp();
-    rememberKey();
-    await pushAll();
-    toast("密码设置成功");
-  }else{
-    const key = await deriveKey(pw, gateSalt);
+  if(gateMode === "pw"){
+    const pw = $("pw1").value;
+    if(pw.length < 4){ $("gateErr").textContent="密码至少 4 位"; return; }
     try{
       const cached = JSON.parse(localStorage.getItem(LS_KEY+"_cache"));
-      const v = await decObj(key, cached.ver);
-      if(v !== "SCHEDULE-OK") throw 0;
-      aesKey = key;
-      unpackData(await decObj(aesKey, cached.data));
+      const kek = await deriveKek(pw, b64d(cached.salt));
+      const wrap = await decObj(kek, cached.wrapPw);
+      await importDek(wrap.k);
+      unpackData(await decObj(DEK, cached.data));
+      curPw = pw;
       enterApp(); rememberKey(); backgroundPull();
     }catch(e){
-      $("gateErr").textContent = "密码不正确，请重试";
+      $("gateErr").textContent = "密码不正确，请重试（忘记可点下方找回）";
+    }
+  }
+  else if(gateMode === "recover"){
+    const rc = $("rcInput").value.replace(/\s/g,"");
+    if(!/^\d{12}$/.test(rc)){ $("gateErr").textContent="找回码是 12 位数字"; return; }
+    try{
+      const cached = JSON.parse(localStorage.getItem(LS_KEY+"_cache"));
+      const kek = await deriveKek(rc, b64d(cached.saltR));
+      const wrap = await decObj(kek, cached.wrapRc);
+      await importDek(wrap.k);
+      unpackData(await decObj(DEK, cached.data));
+      pendingRc = rc; myRc = rc;
+      setupMode(true);
+    }catch(e){
+      $("gateErr").textContent = "找回码不正确，请核对后再试";
+    }
+  }
+  else{ // setup / recoverNew：设置新密码
+    const pw = $("pw1").value;
+    if(pw.length < 4){ $("gateErr").textContent="密码至少 4 位"; return; }
+    if(pw !== $("pw2").value){ $("gateErr").textContent="两次输入不一致"; return; }
+    curPw = pw;
+    const isFresh = (gateMode === "setup");
+    if(isFresh){
+      await newDek();
+      myRc = genRc();
+      tasks = []; files = [];
+      storeMeta = {salt: b64e(crypto.getRandomValues(new Uint8Array(16))),
+                   saltR: b64e(crypto.getRandomValues(new Uint8Array(16)))};
+      // 先展示找回码
+      gateBase();
+      $("gateTitle").textContent = "保存你的找回码";
+      $("gateDesc").textContent = "";
+      $("pw1").style.display="none"; $("pw2").style.display="none";
+      $("rememberRow").style.display = "none";
+      $("forgotLink").style.display = "none";
+      $("rcShow").style.display = "block";
+      $("rcCode").textContent = fmtRc(myRc);
+      $("gateBtn").textContent = "我已保存，进入";
+      $("gateBtn").onclick = async ()=>{
+        enterApp(); rememberKey(); await pushAll();
+      };
+    }else{
+      // 找回码重设密码：DEK 和数据不动，只换密码包裹
+      storeMeta.salt = b64e(crypto.getRandomValues(new Uint8Array(16)));
+      enterApp(); rememberKey(); await pushAll();
+      toast("密码已重设，所有内容都在");
     }
   }
 }
@@ -539,13 +642,11 @@ async function backgroundPull(){
   if(dirty) return;
   try{
     const store = await cloudLoad();
-    if(!store || !store.ver || dirty) return;
-    const v = await decObj(aesKey, store.ver);
-    if(v === "SCHEDULE-OK" && !dirty){
-      unpackData(await decObj(aesKey, store.data));
-      localStorage.setItem(LS_KEY+"_cache", JSON.stringify(store));
-      renderAll(); setSync("ok","已同步");
-    }
+    if(!store || !store.wrapPw || dirty) return;
+    unpackData(await decObj(DEK, store.data));
+    localStorage.setItem(LS_KEY+"_cache", JSON.stringify(store));
+    storeMeta = {salt: store.salt, saltR: store.saltR};
+    renderAll(); setSync("ok","已同步");
   }catch(e){ /* 保持本地 */ }
 }
 function renderAll(){ renderCal(); renderDay(); renderUpcoming(); renderLib(); }
@@ -600,7 +701,6 @@ function renderDay(){
   }else{
     list.forEach(t=> box.appendChild(taskEl(t)));
   }
-  // 当日的文件
   const df = $("dayFiles"); df.innerHTML = "";
   files.filter(f=>f.date===selDate).forEach(f=>{
     const el = document.createElement("div"); el.className="dayfile";
@@ -768,11 +868,17 @@ document.addEventListener("click", ()=>{ $("menu").style.display="none"; });
 $("mLock").onclick = ()=>{
   if(confirm("退出并清除本设备上的记住登录？\n（日程和文件保存在云端，不会丢失）")){
     localStorage.removeItem(LS_KEY+"_jwk");
-    aesKey=null; tasks=[]; files=[]; location.reload();
+    DEK=null; tasks=[]; files=[]; location.reload();
   }
 };
+$("mRc").onclick = ()=>{
+  $("rcBig").textContent = fmtRc(myRc || "————");
+  $("rcMask").style.display="flex";
+};
+$("rcClose").onclick = ()=> $("rcMask").style.display="none";
+$("rcMask").onclick = e=>{ if(e.target===$("rcMask")) $("rcMask").style.display="none"; };
 
-/* ================= 修改密码 ================= */
+/* ================= 修改密码（数据不动，只换包裹） ================= */
 $("mPwd").onclick = ()=>{
   $("npw1").value=""; $("npw2").value=""; $("pwdErr").textContent="";
   $("pwdMask").style.display="flex";
@@ -784,13 +890,12 @@ $("pwdSave").onclick = async ()=>{
   if(a.length<4){ $("pwdErr").textContent="密码至少 4 位"; return; }
   if(a!==b){ $("pwdErr").textContent="两次输入不一致"; return; }
   $("pwdErr").textContent="";
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  localStorage.setItem(LS_KEY+"_salt", b64e(salt));
-  aesKey = await deriveKey(a, salt);
+  curPw = a;
+  storeMeta.salt = b64e(crypto.getRandomValues(new Uint8Array(16)));
   await rememberKey();
   $("pwdMask").style.display="none";
   await pushAll();
-  toast("密码已修改，下次用新密码登录");
+  toast("密码已修改，找回码不变");
 };
 
 /* ================= Office 文件文字提取 ================= */
@@ -893,7 +998,6 @@ $("impFile").onchange = async e=>{
       const buf = await f.arrayBuffer();
       let text = "";
       try{ text = await extractOffice(f.name, buf); }catch(err){ text = ""; }
-      // 存进文件库（原件 base64 + 提取的文字）
       const bin = new Uint8Array(buf);
       let b64 = "";
       for(let i=0;i<bin.length;i+=8192) b64 += String.fromCharCode(...bin.subarray(i,i+8192));
@@ -916,7 +1020,7 @@ function parseImport(text){
   for(const raw of text.split(/\r?\n/)){
     let ln = raw.trim();
     if(!ln) continue;
-    if(/^【.*】$/.test(ln)) continue;  // 跳过文件名标记行
+    if(/^【.*】$/.test(ln)) continue;
     let date=null, time=null, m;
     if(m = ln.match(/(20\d{2})\s*[-年\/.]\s*(\d{1,2})\s*[-月\/.]\s*(\d{1,2})\s*[日号]?/)){
       date = m[1]+"-"+pad2(m[2])+"-"+pad2(m[3]);
@@ -974,7 +1078,7 @@ $("impConfirm").onclick = ()=>{
 /* ================= 其他 ================= */
 $("prevM").onclick = ()=>{ curMonth.setMonth(curMonth.getMonth()-1); renderCal(); };
 $("nextM").onclick = ()=>{ curMonth.setMonth(curMonth.getMonth()+1); renderCal(); };
-document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && aesKey) backgroundPull(); });
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && DEK) backgroundPull(); });
 
 initGate();
 </script>
