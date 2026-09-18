@@ -187,8 +187,12 @@
     <p id="gateDesc">输入你的昵称和密码进入</p>
     <div class="gate-err" id="gateErr"></div>
     <input type="text" id="nickInput" placeholder="你的昵称" autocomplete="off" style="letter-spacing:0">
-    <input type="password" id="pw1" placeholder="密码" autocomplete="current-password">
-    <input type="password" id="pw2" placeholder="再输一次确认" style="display:none" autocomplete="new-password">
+    <div style="position:relative">
+    <input type="password" id="pw1" placeholder="密码" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" style="margin-bottom:0">
+    <button type="button" id="pwEye" title="显示/隐藏密码" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;font-size:16px;cursor:pointer;color:var(--muted)">👁</button>
+    </div>
+    <div style="height:12px"></div>
+    <input type="password" id="pw2" placeholder="再输一次确认" style="display:none" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true">
     <label class="remember" id="rememberRow"><input type="checkbox" id="rememberChk" checked>在这台设备上记住登录</label>
     <button class="gate-btn" id="gateBtn">进 入</button>
     <span id="forgotLink">忘记密码？直接重设</span>
@@ -267,7 +271,7 @@
     <label class="imp-file">📄 选择文件（Word / Excel / PPT / PDF / txt，可多选）<input type="file" id="impFile" multiple
       accept=".txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.pdf,text/plain,application/pdf" style="display:none"></label>
     <div id="impSaved"></div>
-    <div class="imp-hint">文件原件会存入下方「文件库」，同时自动把文字内容提取到下面，<br>点「解析成日程」可把每行带日期的内容转成日程（如「9月20日 14:00 党员大会 教三3205」）。</div>
+    <div class="imp-hint">文件会附到所选日期的日程下，文字自动提取到下面。<br>点「解析成日程」把带日期的行转成日程，支持：9月20日、9.18日、9/18、2026-09-20、<br>九月二十日、18日、下周三、明天、下午3点半、14:00 等多种写法。</div>
     <textarea id="impText" placeholder="9月20日 14:00 支部党员大会 教三3205&#10;9月25日 主题团日活动&#10;2026-10-09 09:00 党委会"></textarea>
     <div class="m-btns">
       <button class="btn-plain" id="impCancel">关闭</button>
@@ -596,6 +600,12 @@ function resetMode(){
   $("gateBtn").onclick = onGateSubmit;
 }
 $("forgotLink").onclick = ()=> resetMode();
+$("pwEye").onclick = e=>{
+  e.preventDefault();
+  const p = $("pw1");
+  p.type = p.type === "password" ? "text" : "password";
+  $("pwEye").style.color = p.type === "text" ? "var(--red)" : "var(--muted)";
+};
 
 async function onGateSubmit(){
   $("gateErr").textContent = "";
@@ -631,7 +641,7 @@ async function onGateSubmit(){
         await loadSlotData(store);
         enterApp(); rememberKey(); backgroundPull();
       }catch(e){
-        $("gateErr").textContent = "密码不正确（若你是第一次用，说明这个昵称已被别人用了，请写全一点，如「王芳老师」）";
+        $("gateErr").textContent = "密码不正确（可点输入框右侧 👁 核对实际输入；若你是第一次用，说明这个昵称已被别人用了，请写全一点）";
       }
     }else{
       setupMode();
@@ -1130,29 +1140,95 @@ $("impFile").onchange = async e=>{
     renderAll(); scheduleSave();
   }
 };
+function cn2num(s){
+  const map = {"零":0,"一":1,"二":2,"两":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
+  if(/^\d+$/.test(s)) return +s;
+  if(s === "十") return 10;
+  const m = s.match(/^([一二两三四五六七八九])?十([一二三四五六七八九])?$/);
+  if(m) return (m[1]?map[m[1]]:1)*10 + (m[2]?map[m[2]]:0);
+  return map[s] != null ? map[s] : NaN;
+}
+const NUM_RE = "(\\d{1,2}|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]?|[一二两三四五六七八九])";
+
 function parseImport(text){
-  const curYear = new Date().getFullYear();
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const today = curYear*10000 + (now.getMonth()+1)*100 + now.getDate();
   const out = []; let lastDate = null;
+  const valid = (m,d)=> m>=1 && m<=12 && d>=1 && d<=31;
+
   for(const raw of text.split(/\r?\n/)){
     let ln = raw.trim();
     if(!ln) continue;
     if(/^【.*】$/.test(ln)) continue;
-    let date=null, time=null, m;
-    if(m = ln.match(/(20\d{2})\s*[-年\/.]\s*(\d{1,2})\s*[-月\/.]\s*(\d{1,2})\s*[日号]?/)){
-      date = m[1]+"-"+pad2(m[2])+"-"+pad2(m[3]);
-      ln = ln.replace(m[0], " ");
-    }else if(m = ln.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]/)){
-      date = curYear+"-"+pad2(m[1])+"-"+pad2(m[2]);
+    ln = ln.replace(/[（(]\s*[周星期][一二三四五六日天]\s*[)）]/g, " ");
+    let y = curYear, yExplicit = false, mon = null, day = null, time = null, m;
+
+    if(m = ln.match(new RegExp("(20\\d{2})\\s*[年\\-/.]\\s*" + NUM_RE + "\\s*[月\\-/.]\\s*" + NUM_RE + "\\s*[日号]?"))){
+      const mm = cn2num(m[2]), dd = cn2num(m[3]);
+      if(valid(mm,dd)){ y=+m[1]; yExplicit=true; mon=mm; day=dd; ln = ln.replace(m[0], " "); }
+    }
+    if(mon===null && (m = ln.match(new RegExp(NUM_RE + "\\s*月\\s*" + NUM_RE + "\\s*[日号]?")))){
+      const mm = cn2num(m[1]), dd = cn2num(m[2]);
+      if(valid(mm,dd)){ mon=mm; day=dd; ln = ln.replace(m[0], " "); }
+    }
+    if(mon===null && (m = ln.match(new RegExp("(?:^|\\s)(\\d{1,2})\\s*[.·/]\\s*(\\d{1,2})\\s*[日号]")))){
+      const mm=+m[1], dd=+m[2];
+      if(valid(mm,dd)){ mon=mm; day=dd; ln = ln.replace(m[0], " "); }
+    }
+    if(mon===null && (m = ln.match(/^\s*(\d{1,2})\s*[.·/]\s*(\d{1,2})(?=[\s，,：:]|$)/))){
+      const mm=+m[1], dd=+m[2];
+      if(valid(mm,dd)){ mon=mm; day=dd; ln = ln.replace(m[0], " "); }
+    }
+    if(mon===null && (m = ln.match(new RegExp("(?:^|\\s)" + NUM_RE + "\\s*[日号]")))){
+      const dd = cn2num(m[1]);
+      if(dd>=1 && dd<=31){
+        day = dd; mon = now.getMonth()+1;
+        if(dd < now.getDate()){ mon++; if(mon>12){ mon=1; y++; } }
+        ln = ln.replace(m[0], " ");
+      }
+    }
+    if(mon===null && (m = ln.match(/(下周|下星期|本周|这周|周|星期)([一二三四五六日天])/))){
+      const wd = {"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"日":7,"天":7}[m[2]];
+      const cur = now.getDay()===0 ? 7 : now.getDay();
+      let diff;
+      if(m[1]==="下周"||m[1]==="下星期") diff = 7 - cur + wd;
+      else diff = (wd - cur + 7) % 7;
+      const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate()+diff);
+      y = dt.getFullYear(); yExplicit = true; mon = dt.getMonth()+1; day = dt.getDate();
       ln = ln.replace(m[0], " ");
     }
-    if(date) lastDate = date; else date = lastDate;
-    if(m = ln.match(/(上午|下午|晚上|中午)?\s*([01]?\d|2[0-3])\s*[:：点]\s*([0-5]\d)?\s*分?/)){
-      let hh = +m[2];
-      if((m[1]==="下午"||m[1]==="晚上") && hh<12) hh += 12;
+    if(mon===null && (m = ln.match(/(今天|明天|后天)/))){
+      const add = {"今天":0,"明天":1,"后天":2}[m[1]];
+      const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate()+add);
+      y = dt.getFullYear(); yExplicit = true; mon = dt.getMonth()+1; day = dt.getDate();
+      ln = ln.replace(m[0], " ");
+    }
+
+    if(mon!==null) ln = ln.replace(/[（(]?\s*(?:周|星期)[一二三四五六日天]\s*[)）]?/g, " ");
+    let date = null;
+    if(mon!==null && day!==null){
+      if(!yExplicit){
+        const v = curYear*10000 + mon*100 + day;
+        if(v < today - 6000) y = curYear + 1;
+      }
+      date = y+"-"+pad2(mon)+"-"+pad2(day);
+      lastDate = date;
+    } else date = lastDate;
+
+    if(m = ln.match(new RegExp("(上午|下午|晚上|中午|早上|早晨|今晚|明晚)?\\s*([01]?\\d|2[0-3]|[一二两三四五六七八九]|十[一二]?)\\s*[:：点时]\\s*([0-5]\\d|半|[一二三四五六]十)?\\s*分?"))){
+      let hh = /^\d+$/.test(m[2]) ? +m[2] : cn2num(m[2]);
+      let mi = 0;
+      if(m[3]==="半") mi = 30;
+      else if(m[3]) mi = /^\d+$/.test(m[3]) ? +m[3] : (cn2num(m[3])||0);
+      if((m[1]==="下午"||m[1]==="晚上"||m[1]==="今晚"||m[1]==="明晚") && hh<12) hh += 12;
       if(m[1]==="中午" && hh<6) hh += 12;
-      time = pad2(hh)+":"+(m[3]||"00");
-      ln = ln.replace(m[0], " ");
+      if(!isNaN(hh) && hh>=0 && hh<=23 && mi>=0 && mi<60){
+        time = pad2(hh)+":"+pad2(mi);
+        ln = ln.replace(m[0], " ");
+      }
     }
+
     const title = ln.replace(/^[\s\-—–、，,：:;；.（）()【】\[\]]+/, "").replace(/\s+/g," ").trim();
     if(!title || !date) continue;
     let cat = "work";
@@ -1162,6 +1238,7 @@ function parseImport(text){
   }
   return out;
 }
+
 $("impParse").onclick = ()=>{
   impParsed = parseImport($("impText").value);
   if(!impParsed.length){ toast("没识别出条目：每行需要带日期（如 9月20日 或 2026-09-20）"); return; }
