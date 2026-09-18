@@ -308,10 +308,13 @@
       <button id="libGo" title="搜索" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:var(--red);color:#fff;width:32px;height:32px;border-radius:8px;font-size:15px;cursor:pointer;line-height:1">🔍</button>
     </div>
     <div id="libList" style="margin-top:10px"></div>
+    <div id="libMsg" style="display:none;font-size:13px;color:var(--green);margin-top:10px"></div>
     <div class="m-btns" style="margin-top:14px">
       <button class="btn-plain" id="libClose">关闭</button>
       <button class="btn-primary" id="libImport">＋ 导入文件</button>
     </div>
+    <input type="file" id="libFile" multiple style="display:none"
+      accept=".txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.pdf,text/plain,application/pdf">
   </div>
 </div>
 
@@ -1032,6 +1035,24 @@ async function extractOffice(name, buf){
   return new TextDecoder('utf-8').decode(buf);
 }
 
+/* 按扩展名提取文件文字（供两个导入入口共用） */
+async function readFileText(ext, buf){
+  if(['txt','md','csv'].includes(ext)){
+    let t = new TextDecoder('utf-8').decode(buf);
+    if(t.includes('\uFFFD')) t = new TextDecoder('gb18030').decode(buf);
+    return t;
+  }
+  return await extractOffice('x.'+ext, buf);
+}
+function fileToB64(buf){
+  const bin = new Uint8Array(buf);
+  let b64 = "";
+  for(let i=0;i<bin.length;i+=8192) b64 += String.fromCharCode(...bin.subarray(i,i+8192));
+  return btoa(b64);
+}
+const ACCEPT_OK = ['docx','pptx','xlsx','txt','md','csv','pdf'];
+const ACCEPT_LEGACY = ['doc','ppt','xls'];
+
 /* ================= 导入 ================= */
 let impParsed = [];
 $("mLib").onclick = ()=>{
@@ -1041,7 +1062,35 @@ $("mLib").onclick = ()=>{
 };
 $("libClose").onclick = ()=> $("libMask").style.display="none";
 $("libMask").onclick = e=>{ if(e.target===$("libMask")) $("libMask").style.display="none"; };
-$("libImport").onclick = ()=>{ $("libMask").style.display="none"; $("mImport").click(); };
+$("libImport").onclick = ()=>{ $("libFile").click(); };
+$("libFile").onchange = async e=>{
+  const list = [...e.target.files]; if(!list.length) return;
+  e.target.value = "";
+  $("libMsg").style.display="none";
+  const date = todayStr();
+  let savedN = 0;
+  for(const f of list){
+    const ext = f.name.split('.').pop().toLowerCase();
+    const legacy = ACCEPT_LEGACY.includes(ext);
+    if(!legacy && !ACCEPT_OK.includes(ext)){ toast("「"+f.name+"」暂不支持（可传 Word/Excel/PPT/PDF/txt）"); continue; }
+    if(f.size > 4*1024*1024){ toast("「"+f.name+"」超过 4MB，太大存不下"); continue; }
+    try{
+      const buf = await f.arrayBuffer();
+      let text = "";
+      if(!legacy) try{ text = await readFileText(ext, buf); }catch(err){ text = ""; }
+      files.push({id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
+        name:f.name, ext, size:f.size, date, text, dataB64:fileToB64(buf)});
+      savedN++;
+    }catch(err){ toast("「"+f.name+"」读取失败"); }
+  }
+  if(savedN){
+    renderAll(); scheduleSave();
+    renderLib();
+    $("libMsg").style.display="block";
+    $("libMsg").textContent = "✅ 上传成功，已存入 "+savedN+" 个文件（"+date.replace(/-/g,"/")+"）";
+    toast("上传成功");
+  }
+};
 $("mImport").onclick = ()=>{
   $("impText").value=""; $("impPreview").style.display="none"; $("impList").innerHTML="";
   $("impSaved").style.display="none";
@@ -1057,27 +1106,17 @@ $("impFile").onchange = async e=>{
   let savedN = 0, extracted = [];
   for(const f of list){
     const ext = f.name.split('.').pop().toLowerCase();
-    const legacy = ['doc','ppt','xls'].includes(ext);   // 老版格式：原件入库，按文件名可检索
-    if(!legacy && !['docx','pptx','xlsx','txt','md','csv','pdf'].includes(ext)){
+    const legacy = ACCEPT_LEGACY.includes(ext);   // 老版格式：原件入库，按文件名可检索
+    if(!legacy && !ACCEPT_OK.includes(ext)){
       toast("「"+f.name+"」暂不支持（可传 Word/Excel/PPT/PDF/txt）"); continue;
     }
     if(f.size > 4*1024*1024){ toast("「"+f.name+"」超过 4MB，太大存不下"); continue; }
     try{
       const buf = await f.arrayBuffer();
       let text = "";
-      if(!legacy) try{
-        if(['txt','md','csv'].includes(ext)){
-          text = new TextDecoder('utf-8').decode(buf);
-          if(text.includes('\uFFFD')) text = new TextDecoder('gb18030').decode(buf);  // Windows中文文档常见GBK编码
-        }else{
-          text = await extractOffice(f.name, buf);
-        }
-      }catch(err){ text = ""; }
-      const bin = new Uint8Array(buf);
-      let b64 = "";
-      for(let i=0;i<bin.length;i+=8192) b64 += String.fromCharCode(...bin.subarray(i,i+8192));
+      if(!legacy) try{ text = await readFileText(ext, buf); }catch(err){ text = ""; }
       files.push({id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
-        name:f.name, ext, size:f.size, date, text, dataB64:btoa(b64)});
+        name:f.name, ext, size:f.size, date, text, dataB64:fileToB64(buf)});
       savedN++;
       if(text) extracted.push("【"+f.name+"】\n"+text);
       if(ext==='pdf' && !text.trim()) toast("「"+f.name+"」是扫描件PDF，已存原件，文字预览不了");
