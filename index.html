@@ -204,6 +204,7 @@
     <button id="menuBtn">⋯</button>
   </header>
   <div id="menu">
+    <button id="mLib">📁 文件库</button>
     <button id="mImport">📥 导入日程/文件</button>
     <button id="mPwd">🔑 修改密码</button>
     <button id="mLock">🔒 退出登录</button>
@@ -226,12 +227,6 @@
   </div>
 
   <div id="upSec"><h2>📌 即将到来</h2><div id="upList"></div></div>
-
-  <div id="libSec">
-    <h2>📁 文件库</h2>
-    <input id="libSearch" placeholder="🔍 搜索文件名或内容…">
-    <div id="libList"></div>
-  </div>
 
   <footer>中国人民大学历史学院 · 个人工作日程</footer>
 </div>
@@ -300,6 +295,19 @@
     <div class="m-btns">
       <button class="btn-plain" id="pwdCancel">取消</button>
       <button class="btn-primary" id="pwdSave">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- 文件库弹层 -->
+<div class="mask" id="libMask">
+  <div class="sheet">
+    <h3>📁 文件库</h3>
+    <input id="libSearch" placeholder="🔍 搜索文件名或内容…">
+    <div id="libList" style="margin-top:10px"></div>
+    <div class="m-btns" style="margin-top:14px">
+      <button class="btn-plain" id="libClose">关闭</button>
+      <button class="btn-primary" id="libImport">＋ 导入文件</button>
     </div>
   </div>
 </div>
@@ -1001,6 +1009,14 @@ async function extractOffice(name, buf){
 
 /* ================= 导入 ================= */
 let impParsed = [];
+$("mLib").onclick = ()=>{
+  $("libSearch").value="";
+  renderLib();
+  $("libMask").style.display="flex";
+};
+$("libClose").onclick = ()=> $("libMask").style.display="none";
+$("libMask").onclick = e=>{ if(e.target===$("libMask")) $("libMask").style.display="none"; };
+$("libImport").onclick = ()=>{ $("libMask").style.display="none"; $("mImport").click(); };
 $("mImport").onclick = ()=>{
   $("impText").value=""; $("impPreview").style.display="none"; $("impList").innerHTML="";
   $("impSaved").style.display="none";
