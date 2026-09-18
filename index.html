@@ -90,6 +90,11 @@
   .t-cat.work{background:#E8F0F8;color:var(--blue);}
   .t-cat.personal{background:#E9F4EA;color:var(--green);}
   .t-note{font-size:13px;color:var(--muted);margin-top:4px;white-space:pre-wrap;word-break:break-all;}
+  .cat-group{font-size:13px;font-weight:700;margin:12px 2px 8px;display:flex;align-items:center;gap:6px;}
+  .cat-group::before{content:"";width:4px;height:14px;border-radius:2px;background:var(--red);}
+  .cat-group.g-work::before{background:var(--blue);}
+  .cat-group.g-personal::before{background:var(--green);}
+  .cat-group .cnt{font-size:11px;color:var(--muted);font-weight:400;}
   #emptyDay{text-align:center;color:var(--muted);font-size:13px;padding:26px 0;background:var(--card);border-radius:12px;
         border:1.5px dashed var(--line);}
   .dayfile{display:flex;align-items:center;gap:8px;background:#FDF9F4;border:1px solid #F0E6D2;border-radius:10px;
@@ -758,7 +763,16 @@ function renderDay(){
   if(!list.length){
     box.innerHTML = '<div id="emptyDay">这一天还没有安排<br>点右下角 ＋ 添加，或点右上角 ⋯ 导入</div>';
   }else{
-    list.forEach(t=> box.appendChild(taskEl(t)));
+    // 按分类分组：党团 → 工作 → 个人
+    for(const c of ["party","work","personal"]){
+      const group = list.filter(t=>t.cat===c);
+      if(!group.length) continue;
+      const hd = document.createElement("div");
+      hd.className = "cat-group g-"+c;
+      hd.innerHTML = CAT_NAME[c] + ' <span class="cnt">' + group.length + " 项</span>";
+      box.appendChild(hd);
+      group.forEach(t=> box.appendChild(taskEl(t)));
+    }
   }
   const df = $("dayFiles"); df.innerHTML = "";
   files.filter(f=>f.date===selDate).forEach(f=>{
