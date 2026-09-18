@@ -177,6 +177,11 @@
         font-variant-numeric:tabular-nums;padding:18px 0 6px;}
   #rcTip{font-size:12px;color:var(--muted);text-align:center;line-height:1.7;padding-bottom:10px;}
 
+  #viewRender{max-height:52vh;overflow-y:auto;}
+  #viewRender canvas{width:100%;display:block;margin-bottom:10px;border:1px solid var(--line);border-radius:8px;}
+  .xlsx-table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;}
+  .xlsx-table td,.xlsx-table th{border:1px solid var(--line);padding:6px 8px;text-align:left;word-break:break-all;}
+  .xlsx-table tr:first-child td{background:#FDF6EC;font-weight:700;}
   #toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(30,20,22,.88);color:#fff;
         padding:9px 18px;border-radius:20px;font-size:13px;display:none;z-index:40;max-width:80%;text-align:center;}
   footer{text-align:center;font-size:11px;color:var(--muted);margin-top:24px;line-height:1.7;}
@@ -333,6 +338,7 @@
     <h3 id="viewName">文件</h3>
     <div id="viewMeta"></div>
     <div id="viewText"></div>
+    <div id="viewRender" style="display:none"></div>
     <div class="m-btns" style="margin-top:14px">
       <button class="btn-danger" id="viewDel">删除</button>
       <button class="btn-plain" id="viewClose">关闭</button>
@@ -861,10 +867,83 @@ function openViewer(id){
   viewId = id;
   $("viewName").textContent = f.name;
   $("viewMeta").textContent = "归入日期 "+f.date.replace(/-/g,"/")+" · "+fmtSize(f.size);
-  $("viewText").textContent = f.text || (['doc','ppt','xls'].includes(f.ext)
-    ? "老版格式（."+f.ext+"）不支持页内预览，可点下方「下载原件」查看；\n如需按内容搜索，请把文件另存为 ."+f.ext+"x 后重新导入"
-    : "该文件暂不支持文字预览，可点下方「下载原件」查看");
+  const vt = $("viewText"), vr = $("viewRender");
+  vr.style.display="none"; vr.innerHTML="";
+  vt.style.display="block";
   $("viewMask").style.display="flex";
+  if(['doc','ppt','xls'].includes(f.ext)){
+    vt.textContent = "老版格式（."+f.ext+"）不支持页内预览，可点下方「下载原件」查看；\n如需按内容搜索，请把文件另存为 ."+f.ext+"x 后重新导入";
+    return;
+  }
+  if(f.ext==='pdf'){
+    if(f.text && f.text.trim()){ vt.textContent = f.text; }
+    if(f.dataB64){
+      vt.textContent = "页面加载中…";
+      renderPdfInto(vr, f).then(ok=>{
+        if(ok){ vt.style.display = f.text && f.text.trim() ? "block" : "none";
+                if(!(f.text && f.text.trim())) vt.textContent=""; }
+        else{ vt.textContent = f.text || "该 PDF 无法页内预览，可下载原件查看"; }
+      });
+    }else{
+      vt.textContent = f.text || "该 PDF 无法页内预览，可下载原件查看";
+    }
+    return;
+  }
+  if((f.ext==='xlsx'||f.ext==='csv') && f.dataB64){
+    vt.textContent = "表格加载中…";
+    renderTableInto(vr, f).then(ok=>{
+      if(ok){ vt.style.display="none"; vr.style.display="block"; }
+      else vt.textContent = f.text || "无法预览，可下载原件查看";
+    });
+    return;
+  }
+  vt.textContent = f.text || "该文件暂无文字内容可预览，可点下方「下载原件」查看";
+}
+async function renderPdfInto(box, f){
+  try{
+    const buf = b64d(f.dataB64).buffer;
+    const doc = await pdfjsLib.getDocument({data: buf, isEvalSupported:false}).promise;
+    const n = Math.min(doc.numPages, 30);
+    const width = box.clientWidth || 320;
+    for(let p=1; p<=n; p++){
+      const page = await doc.getPage(p);
+      const vp1 = page.getViewport({scale:1});
+      const scale = (width / vp1.width) * (window.devicePixelRatio||1.5);
+      const vp = page.getViewport({scale});
+      const cv = document.createElement("canvas");
+      cv.width = vp.width; cv.height = vp.height;
+      await page.render({canvasContext: cv.getContext("2d"), viewport: vp}).promise;
+      box.appendChild(cv);
+    }
+    box.style.display="block";
+    return n>0;
+  }catch(e){ return false; }
+}
+async function renderTableInto(box, f){
+  try{
+    let rows = [];
+    if(f.ext==='xlsx'){
+      rows = await extractXlsxRows(b64d(f.dataB64).buffer);
+    }else{
+      const txt = new TextDecoder('utf-8').decode(b64d(f.dataB64));
+      rows = txt.split(/\r?\n/).map(l=>l.split(/[,，\t]/));
+    }
+    rows = rows.filter(r=>r.some(c=>String(c).trim()!==""));
+    if(!rows.length) return false;
+    const tb = document.createElement("table");
+    tb.className = "xlsx-table";
+    rows.slice(0,200).forEach(r=>{
+      const tr = document.createElement("tr");
+      r.forEach(c=>{
+        const td = document.createElement("td");
+        td.textContent = c;
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+    box.innerHTML=""; box.appendChild(tb); box.style.display="block";
+    return true;
+  }catch(e){ return false; }
 }
 $("viewClose").onclick = ()=> $("viewMask").style.display="none";
 $("viewMask").onclick = e=>{ if(e.target===$("viewMask")) $("viewMask").style.display="none"; };
@@ -1053,6 +1132,43 @@ async function extractPdf(buf){
     if(line.trim()) parts.push(line.trim());
   }
   return parts.join("\n").normalize("NFKC");
+}
+async function extractXlsxRows(buf){
+  const zip = await JSZip.loadAsync(buf);
+  let shared = [];
+  const ss = zip.file('xl/sharedStrings.xml');
+  if(ss){
+    const xml = await ss.async('string');
+    const siList = xml.match(/<si[\s\S]*?<\/si>/g) || [];
+    shared = siList.map(si=>{
+      const ts = si.match(/<t[^>]*>[\s\S]*?<\/t>/g) || [];
+      return xmlUnescape(ts.map(t=>t.replace(/<[^>]+>/g,'')).join(''));
+    });
+  }
+  const sheets = Object.keys(zip.files)
+    .filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+    .sort((a,b)=> (+a.match(/\d+/)[0]) - (+b.match(/\d+/)[0]));
+  const rows = [];
+  for(const n of sheets){
+    const xml = await zip.file(n).async('string');
+    const rws = xml.match(/<row[\s\S]*?<\/row>/g) || [];
+    for(const row of rws){
+      const cells = row.match(/<c[\s\S]*?(<\/c>|\/>)/g) || [];
+      const vals = cells.map(c=>{
+        const t = (c.match(/\bt="(\w+)"/)||[])[1];
+        const v = (c.match(/<v>[\s\S]*?<\/v>/)||[null])[0];
+        const vv = v ? v.replace(/<\/?v>/g,'') : null;
+        if(t==='s' && vv!=null) return shared[+vv] || '';
+        if(t==='inlineStr'){
+          const it = (c.match(/<t[^>]*>([\s\S]*?)<\/t>/)||[])[1];
+          return xmlUnescape(it||'');
+        }
+        return vv!=null ? xmlUnescape(vv) : '';
+      });
+      rows.push(vals);
+    }
+  }
+  return rows;
 }
 async function extractOffice(name, buf){
   const ext = name.split('.').pop().toLowerCase();
