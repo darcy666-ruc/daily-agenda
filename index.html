@@ -872,7 +872,9 @@ function openViewer(id){
   vt.style.display="block";
   $("viewMask").style.display="flex";
   if(['doc','ppt','xls'].includes(f.ext)){
-    vt.textContent = "老版格式（."+f.ext+"）不支持页内预览，可点下方「下载原件」查看；\n如需按内容搜索，请把文件另存为 ."+f.ext+"x 后重新导入";
+    vt.textContent = f.text && f.text.trim()
+      ? f.text + "\n\n—— 以上为老版格式提取的正文，版式请下载原件查看 ——"
+      : "该老版文件未能提取文字，可点下方「下载原件」查看";
     return;
   }
   if(f.ext==='pdf'){
@@ -1179,6 +1181,41 @@ async function extractOffice(name, buf){
   return new TextDecoder('utf-8').decode(buf);
 }
 
+/* 老版二进制格式（.doc/.xls/.ppt）启发式文字提取：UTF-16LE 双对齐扫描 + 高频字甄别 */
+const FREQ_CHARS = "的一是不了在和有我他这中大会月日年时点分个来上下午晚党员干部支部团委会议工作活动安排学习通知地点时间参加组织思想汇报总结计划部署";
+function extractLegacyText(buf){
+  const u = new Uint8Array(buf);
+  const printableRuns = str => {
+    const out = []; let cur = "";
+    for(const ch of str){
+      const code = ch.codePointAt(0);
+      const ok = (code>=0x4E00 && code<=0x9FFF) || (code>=0x3400 && code<=0x4DBF) ||
+                 (code>=0x3000 && code<=0x303F) || (code>=0xFF00 && code<=0xFFEF) ||
+                 (code>=0x2010 && code<=0x2027) || (code>=32 && code<127) || code===0x3000;
+      if(ok) cur += ch;
+      else { if(cur.replace(/\s/g,'').length >= 3) out.push(cur.trim()); cur = ""; }
+    }
+    if(cur.replace(/\s/g,'').length >= 3) out.push(cur.trim());
+    return out;
+  };
+  const freqScore = arr => {
+    const s = arr.join('\n'); let n = 0;
+    for(const ch of s) if(FREQ_CHARS.includes(ch)) n++;
+    return n;
+  };
+  const variants = [0,1].map(off => printableRuns(new TextDecoder('utf-16le').decode(u.subarray(off))));
+  let best = variants[0];
+  for(const v of variants) if(freqScore(v) > freqScore(best)) best = v;
+  const junkRe = /^(Root Entry|\d?Table|WordDocument|SummaryInformation|DocumentSummaryInformation|Times New Roman|Symbol|Arial|Helvetica.*|Calibri|Normal|Default Paragraph Font|Microsoft.*|宋体|黑体|仿宋|楷体)$/;
+  const lines = best.filter(l=>{
+    if(junkRe.test(l.trim())) return false;
+    const cjk = l.replace(/[^\u4e00-\u9fff]/g,'');
+    if(cjk.length >= 4 && ![...cjk].some(c=>FREQ_CHARS.includes(c))) return false;  // 无高频字的长CJK行=错位乱码
+    return true;
+  });
+  return lines.join('\n').replace(/[ \t　]{2,}/g,' ').replace(/\n{2,}/g,'\n').trim();
+}
+
 /* 按扩展名提取文件文字（供两个导入入口共用） */
 async function readFileText(ext, buf){
   if(['txt','md','csv'].includes(ext)){
@@ -1186,6 +1223,7 @@ async function readFileText(ext, buf){
     if(t.includes('\uFFFD')) t = new TextDecoder('gb18030').decode(buf);
     return t;
   }
+  if(['doc','ppt','xls'].includes(ext)) return extractLegacyText(buf);
   return await extractOffice('x.'+ext, buf);
 }
 function fileToB64(buf){
@@ -1221,7 +1259,7 @@ $("libFile").onchange = async e=>{
     try{
       const buf = await f.arrayBuffer();
       let text = "";
-      if(!legacy) try{ text = await readFileText(ext, buf); }catch(err){ text = ""; }
+      try{ text = await readFileText(ext, buf); }catch(err){ text = ""; }
       files.push({id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
         name:f.name, ext, size:f.size, date, text, dataB64:fileToB64(buf), lib:true});
       savedN++;
@@ -1258,13 +1296,13 @@ $("impFile").onchange = async e=>{
     try{
       const buf = await f.arrayBuffer();
       let text = "";
-      if(!legacy) try{ text = await readFileText(ext, buf); }catch(err){ text = ""; }
+      try{ text = await readFileText(ext, buf); }catch(err){ text = ""; }
       files.push({id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
         name:f.name, ext, size:f.size, date, text, dataB64:fileToB64(buf), lib:false});
       savedN++;
       if(text) extracted.push("【"+f.name+"】\n"+text);
       if(ext==='pdf' && !text.trim()) toast("「"+f.name+"」是扫描件PDF，已存原件，文字预览不了");
-      if(legacy) toast("「"+f.name+"」老版格式已存原件，可按文件名搜索");
+      if(legacy) toast("「"+f.name+"」老版格式已入库"+"" );
     }catch(err){ toast("「"+f.name+"」读取失败"); }
   }
   if(savedN){
