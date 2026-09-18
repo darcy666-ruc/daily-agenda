@@ -270,7 +270,7 @@
       <input type="date" id="impDate">
     </div>
     <label class="imp-file">📄 选择文件（Word / Excel / PPT / PDF / txt，可多选）<input type="file" id="impFile" multiple
-      accept=".txt,.md,.csv,.docx,.pptx,.xlsx,.pdf,text/plain,application/pdf" style="display:none"></label>
+      accept=".txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.pdf,text/plain,application/pdf" style="display:none"></label>
     <div id="impSaved"></div>
     <div class="imp-hint">文件原件会存入下方「文件库」，同时自动把文字内容提取到下面，<br>点「解析成日程」可把每行带日期的内容转成日程（如「9月20日 14:00 党员大会 教三3205」）。</div>
     <textarea id="impText" placeholder="9月20日 14:00 支部党员大会 教三3205&#10;9月25日 主题团日活动&#10;2026-10-09 09:00 党委会"></textarea>
@@ -375,7 +375,7 @@ function fmtDate(d){ return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(t._tm); t._tm=setTimeout(()=>t.style.display="none",2200); }
 function fmtSize(n){ return n<1024? n+"B" : n<1048576? (n/1024).toFixed(0)+"KB" : (n/1048576).toFixed(1)+"MB"; }
 function escHtml(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-const FILE_ICON = {docx:"📝", pptx:"📊", xlsx:"📈", txt:"📄", md:"📄", csv:"📈", pdf:"📕"};
+const FILE_ICON = {docx:"📝", pptx:"📊", xlsx:"📈", txt:"📄", md:"📄", csv:"📈", pdf:"📕", doc:"📝", ppt:"📊", xls:"📈"};
 
 /* ================= 加密 =================
    数据密钥内嵌于页面（分段混淆存放）；密码是进入各自空间的门闩。
@@ -798,7 +798,9 @@ function openViewer(id){
   viewId = id;
   $("viewName").textContent = f.name;
   $("viewMeta").textContent = "归入日期 "+f.date.replace(/-/g,"/")+" · "+fmtSize(f.size);
-  $("viewText").textContent = f.text || "该文件暂不支持文字预览，可点下方「下载原件」查看";
+  $("viewText").textContent = f.text || (['doc','ppt','xls'].includes(f.ext)
+    ? "老版格式（."+f.ext+"）不支持页内预览，可点下方「下载原件」查看；\n如需按内容搜索，请把文件另存为 ."+f.ext+"x 后重新导入"
+    : "该文件暂不支持文字预览，可点下方「下载原件」查看");
   $("viewMask").style.display="flex";
 }
 $("viewClose").onclick = ()=> $("viewMask").style.display="none";
@@ -1014,17 +1016,15 @@ $("impFile").onchange = async e=>{
   let savedN = 0, extracted = [];
   for(const f of list){
     const ext = f.name.split('.').pop().toLowerCase();
-    if(['doc','ppt','xls'].includes(ext)){
-      toast("「"+f.name+"」是老版格式，请先另存为 ."+ext+"x 再导入"); continue;
-    }
-    if(!['docx','pptx','xlsx','txt','md','csv','pdf'].includes(ext)){
+    const legacy = ['doc','ppt','xls'].includes(ext);   // 老版格式：原件入库，按文件名可检索
+    if(!legacy && !['docx','pptx','xlsx','txt','md','csv','pdf'].includes(ext)){
       toast("「"+f.name+"」暂不支持（可传 Word/Excel/PPT/PDF/txt）"); continue;
     }
     if(f.size > 4*1024*1024){ toast("「"+f.name+"」超过 4MB，太大存不下"); continue; }
     try{
       const buf = await f.arrayBuffer();
       let text = "";
-      try{
+      if(!legacy) try{
         if(['txt','md','csv'].includes(ext)){
           text = new TextDecoder('utf-8').decode(buf);
           if(text.includes('\uFFFD')) text = new TextDecoder('gb18030').decode(buf);  // Windows中文文档常见GBK编码
@@ -1040,6 +1040,7 @@ $("impFile").onchange = async e=>{
       savedN++;
       if(text) extracted.push("【"+f.name+"】\n"+text);
       if(ext==='pdf' && !text.trim()) toast("「"+f.name+"」是扫描件PDF，已存原件，文字预览不了");
+      if(legacy) toast("「"+f.name+"」老版格式已存原件，可按文件名搜索");
     }catch(err){ toast("「"+f.name+"」读取失败"); }
   }
   if(savedN){
