@@ -485,11 +485,10 @@ function scheduleSave(){
 }
 async function pushAll(){
   await dekReady;
-  if(!storeMeta || !slotFile) return;
+  if(!storeMeta || !storeMeta.wrapPw || !slotFile) return;
   try{
-    const kekPw = await deriveKek(curPw, b64d(storeMeta.salt));
     const store = {v:5, ts:Date.now(), salt:storeMeta.salt,
-      wrapPw: await encObj(kekPw, "LOCK-OK"),
+      wrapPw: storeMeta.wrapPw,          // 密码校验值原样写回，只有改密码时才换
       data: await encObj(DEK, packData())};
     const s = JSON.stringify(store);
     await cloudSave(slotFile, store);                     // 先传云端（大头）
@@ -522,6 +521,7 @@ async function loadSlotData(store){
     const d = await decObj(oldDek, store.data);
     delete d.rc;
     unpackData(d);
+    storeMeta.wrapPw = await encObj(await deriveKek(curPw, b64d(storeMeta.salt)), "LOCK-OK");  // 升级校验值
     scheduleSave(); // 迁移为新格式
   }
 }
@@ -552,7 +552,8 @@ async function initGate(){
       const cached = localStorage.getItem(ck());
       if(!cached) throw 0;
       const store = JSON.parse(cached);
-      storeMeta = {salt: store.salt};
+      if(store.wrapRc) throw 0;   // 旧版格式：回密码门走迁移
+      storeMeta = {salt: store.salt, wrapPw: store.wrapPw};
       await loadSlotData(store);
       enterApp(); backgroundPull(); return;
     }catch(e){ localStorage.removeItem(LS_KEY+"_jwk"); }
@@ -629,7 +630,7 @@ async function onGateSubmit(){
         const lc = JSON.parse(localStorage.getItem(ck())||"null");
         if(lc && (lc.ts||0) > (store.ts||0)) store = lc;
       }catch(e){}
-      storeMeta = {salt: store.salt};
+      storeMeta = {salt: store.salt, wrapPw: store.wrapPw};
       try{ localStorage.setItem(ck(), JSON.stringify(store)); }catch(e){}
       try{
         const kek = await deriveKek(pw, b64d(store.salt));
@@ -666,7 +667,8 @@ async function onGateSubmit(){
       $("gateErr").textContent="数据读取失败，请重试"; return;
     }
     curPw = pw;
-    storeMeta.salt = b64e(crypto.getRandomValues(new Uint8Array(16)));
+    const salt2 = crypto.getRandomValues(new Uint8Array(16));
+    storeMeta = {salt: b64e(salt2), wrapPw: await encObj(await deriveKek(pw, salt2), "LOCK-OK")};
     enterApp(); rememberKey(); await pushAll();
     toast("密码已重设，所有内容都在");
   }
@@ -675,7 +677,8 @@ async function onGateSubmit(){
     if(pw !== $("pw2").value){ $("gateErr").textContent="两次输入不一致"; return; }
     curPw = pw;
     tasks = []; files = [];
-    storeMeta = {salt: b64e(crypto.getRandomValues(new Uint8Array(16)))};
+    const salt0 = crypto.getRandomValues(new Uint8Array(16));
+    storeMeta = {salt: b64e(salt0), wrapPw: await encObj(await deriveKek(pw, salt0), "LOCK-OK")};
     enterApp(); rememberKey(); await pushAll();
     toast("空间已开通");
   }
@@ -701,7 +704,7 @@ async function backgroundPull(){
     if(lc && (lc.ts||0) > (cloud.ts||0)){ pushAll(); return; }  // 本机更新→补传云端
     unpackData(await decObj(DEK, cloud.data));
     try{ localStorage.setItem(ck(), JSON.stringify(cloud)); }catch(e){}
-    storeMeta = {salt: cloud.salt};
+    storeMeta = {salt: cloud.salt, wrapPw: cloud.wrapPw};
     renderAll(); setSync("ok","已同步");
   }catch(e){ /* 保持本地 */ }
 }
@@ -945,7 +948,8 @@ $("pwdSave").onclick = async ()=>{
   if(a!==b){ $("pwdErr").textContent="两次输入不一致"; return; }
   $("pwdErr").textContent="";
   curPw = a;
-  storeMeta.salt = b64e(crypto.getRandomValues(new Uint8Array(16)));
+  const salt3 = crypto.getRandomValues(new Uint8Array(16));
+  storeMeta = {salt: b64e(salt3), wrapPw: await encObj(await deriveKek(a, salt3), "LOCK-OK")};
   await rememberKey();
   $("pwdMask").style.display="none";
   await pushAll();
