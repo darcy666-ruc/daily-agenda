@@ -801,10 +801,10 @@ function renderLib(){
   const q = $("libSearch").value.trim();
   const box = $("libList"); box.innerHTML="";
   if(!files.length){
-    box.innerHTML = '<div class="lib-empty">还没有文件。点右上角 ⋯ → 导入日程/文件，Word、Excel、PPT、PDF 原件会保存在这里，随时查找。</div>';
+    box.innerHTML = '<div class="lib-empty">还没有资料。点下方「＋ 导入文件」上传，Word、Excel、PPT、PDF 都可以，随时搜索查看。</div>';
     return;
   }
-  const sorted = [...files].sort((a,b)=> b.date<a.date?-1:1);
+  const sorted = files.filter(f=>f.lib !== false).sort((a,b)=> b.date<a.date?-1:1);
   const filtered = q ? sorted.filter(f=> f.name.includes(q) || (f.text||"").includes(q)) : sorted;
   if(!filtered.length){
     box.innerHTML = '<div class="lib-empty">没有找到含「'+escHtml(q)+'」的文件</div>';
@@ -1079,7 +1079,7 @@ $("libFile").onchange = async e=>{
       let text = "";
       if(!legacy) try{ text = await readFileText(ext, buf); }catch(err){ text = ""; }
       files.push({id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
-        name:f.name, ext, size:f.size, date, text, dataB64:fileToB64(buf)});
+        name:f.name, ext, size:f.size, date, text, dataB64:fileToB64(buf), lib:true});
       savedN++;
     }catch(err){ toast("「"+f.name+"」读取失败"); }
   }
@@ -1116,7 +1116,7 @@ $("impFile").onchange = async e=>{
       let text = "";
       if(!legacy) try{ text = await readFileText(ext, buf); }catch(err){ text = ""; }
       files.push({id:Date.now()+"-"+Math.random().toString(36).slice(2,7),
-        name:f.name, ext, size:f.size, date, text, dataB64:fileToB64(buf)});
+        name:f.name, ext, size:f.size, date, text, dataB64:fileToB64(buf), lib:false});
       savedN++;
       if(text) extracted.push("【"+f.name+"】\n"+text);
       if(ext==='pdf' && !text.trim()) toast("「"+f.name+"」是扫描件PDF，已存原件，文字预览不了");
@@ -1125,7 +1125,7 @@ $("impFile").onchange = async e=>{
   }
   if(savedN){
     $("impSaved").style.display="block";
-    $("impSaved").textContent = "✅ 已把 "+savedN+" 个文件存入文件库（"+date.replace(/-/g,"/")+"）";
+    $("impSaved").textContent = "✅ 已把 "+savedN+" 个文件附到 "+date.replace(/-/g,"/")+" 的日程下";
     if(extracted.length) $("impText").value = extracted.join("\n");
     renderAll(); scheduleSave();
   }
