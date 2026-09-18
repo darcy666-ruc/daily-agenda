@@ -303,7 +303,10 @@
 <div class="mask" id="libMask">
   <div class="sheet">
     <h3>📁 文件库</h3>
-    <input id="libSearch" placeholder="🔍 搜索文件名或内容…">
+    <div style="position:relative">
+      <input id="libSearch" placeholder="搜索文件名或内容…" style="padding-right:44px">
+      <button id="libGo" title="搜索" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:var(--red);color:#fff;width:32px;height:32px;border-radius:8px;font-size:15px;cursor:pointer;line-height:1">🔍</button>
+    </div>
     <div id="libList" style="margin-top:10px"></div>
     <div class="m-btns" style="margin-top:14px">
       <button class="btn-plain" id="libClose">关闭</button>
@@ -429,10 +432,21 @@ async function cloudLoad(slot){
   return JSON.parse(f.content);
 }
 async function cloudSave(slot, store){
-  const r = await fetch(gistApi, {method:"PATCH",
-    headers:{"Authorization":"token "+GH_TOKEN,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
-    body: JSON.stringify({files:{[slot]:{content:JSON.stringify(store)}}})});
-  if(!r.ok) throw new Error("save "+r.status);
+  const body = JSON.stringify({files:{[slot]:{content:JSON.stringify(store)}}});
+  for(let attempt=0; attempt<2; attempt++){
+    try{
+      const ctl = new AbortController();
+      const timer = setTimeout(()=>ctl.abort(), 45000);
+      const r = await fetch(gistApi, {method:"PATCH",
+        headers:{"Authorization":"token "+GH_TOKEN,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
+        body, signal: ctl.signal});
+      clearTimeout(timer);
+      if(r.ok) return;
+      if(attempt===1) throw new Error("save "+r.status);
+    }catch(e){
+      if(attempt===1) throw e;
+    }
+  }
 }
 
 /* ================= 状态 ================= */
@@ -470,13 +484,14 @@ async function pushAll(){
     const store = {v:5, ts:Date.now(), salt:storeMeta.salt,
       wrapPw: await encObj(kekPw, "LOCK-OK"),
       data: await encObj(DEK, packData())};
-    localStorage.setItem(ck(), JSON.stringify(store));   // 先落本机（已加密），断网也不丢
-    await cloudSave(slotFile, store);
+    const s = JSON.stringify(store);
+    await cloudSave(slotFile, store);                     // 先传云端（大头）
+    try{ localStorage.setItem(ck(), s); }catch(e){}       // 本机缓存失败（如超配额）不影响云端
     dirty = false;
     setSync("ok","已同步");
   }catch(e){
     setSync("error","未同步·点我重试");
-    toast("网络不佳，内容已保存在本机，稍后点右上角红字重试");
+    toast("同步未成功，内容在本机有底稿，联网后点右上角红字重试");
   }
 }
 function rememberKey(){
@@ -509,6 +524,15 @@ let gateMode = "pw";  // pw | setup | reset
 
 async function initGate(){
   await dekReady;
+  // 清理旧版本遗留的本地缓存，避免占满浏览器存储配额
+  try{
+    const doomed = [];
+    for(let i=0; i<localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && /^pd_schedule_key_v[013]/.test(k)) doomed.push(k);
+    }
+    doomed.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
   $("app").style.display="none"; $("addBtn").style.display="none"; $("menu").style.display="none";
   $("gate").style.display="flex";
   // 记住登录
@@ -593,7 +617,7 @@ async function onGateSubmit(){
         if(lc && (lc.ts||0) > (store.ts||0)) store = lc;
       }catch(e){}
       storeMeta = {salt: store.salt};
-      localStorage.setItem(ck(), JSON.stringify(store));
+      try{ localStorage.setItem(ck(), JSON.stringify(store)); }catch(e){}
       try{
         const kek = await deriveKek(pw, b64d(store.salt));
         const proof = await decObj(kek, store.wrapPw);
@@ -663,7 +687,7 @@ async function backgroundPull(){
     const lc = JSON.parse(localStorage.getItem(ck())||"null");
     if(lc && (lc.ts||0) > (cloud.ts||0)){ pushAll(); return; }  // 本机更新→补传云端
     unpackData(await decObj(DEK, cloud.data));
-    localStorage.setItem(ck(), JSON.stringify(cloud));
+    try{ localStorage.setItem(ck(), JSON.stringify(cloud)); }catch(e){}
     storeMeta = {salt: cloud.salt};
     renderAll(); setSync("ok","已同步");
   }catch(e){ /* 保持本地 */ }
@@ -769,6 +793,7 @@ function renderUpcoming(){
 
 /* ================= 文件库 ================= */
 $("libSearch").oninput = ()=> renderLib();
+$("libGo").onclick = ()=>{ renderLib(); $("libSearch").focus(); };
 function renderLib(){
   const q = $("libSearch").value.trim();
   const box = $("libList"); box.innerHTML="";
