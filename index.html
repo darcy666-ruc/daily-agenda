@@ -389,6 +389,11 @@ async function cloudLoad(slot){
   const g = await r.json();
   const f = g.files && g.files[slot];
   if(!f) return null;
+  if(f.truncated && f.raw_url){          // 超过1MB的内容接口会截断，改走完整下载
+    const rr = await fetch(f.raw_url);
+    if(!rr.ok) throw new Error("raw "+rr.status);
+    return JSON.parse(await rr.text());
+  }
   return JSON.parse(f.content);
 }
 async function cloudSave(slot, store){
@@ -430,15 +435,16 @@ async function pushAll(){
   if(!storeMeta || !slotFile) return;
   try{
     const kekPw = await deriveKek(curPw, b64d(storeMeta.salt));
-    const store = {v:5, salt:storeMeta.salt,
+    const store = {v:5, ts:Date.now(), salt:storeMeta.salt,
       wrapPw: await encObj(kekPw, "LOCK-OK"),
       data: await encObj(DEK, packData())};
+    localStorage.setItem(ck(), JSON.stringify(store));   // 先落本机（已加密），断网也不丢
     await cloudSave(slotFile, store);
-    localStorage.setItem(ck(), JSON.stringify(store));
     dirty = false;
     setSync("ok","已同步");
   }catch(e){
-    setSync("error","未同步(网络)");
+    setSync("error","未同步·点我重试");
+    toast("网络不佳，内容已保存在本机，稍后点右上角红字重试");
   }
 }
 function rememberKey(){
@@ -550,6 +556,10 @@ async function onGateSubmit(){
       else { $("gateErr").textContent="网络异常，请检查网络后重试"; return; }
     }
     if(store && store.wrapPw){
+      try{   // 本机有更新的未同步内容则优先用本机
+        const lc = JSON.parse(localStorage.getItem(ck())||"null");
+        if(lc && (lc.ts||0) > (store.ts||0)) store = lc;
+      }catch(e){}
       storeMeta = {salt: store.salt};
       localStorage.setItem(ck(), JSON.stringify(store));
       try{
@@ -616,11 +626,13 @@ function enterApp(){
 async function backgroundPull(){
   if(dirty) return;
   try{
-    const store = await cloudLoad(slotFile);
-    if(!store || !store.wrapPw || dirty) return;
-    unpackData(await decObj(DEK, store.data));
-    localStorage.setItem(LS_KEY+"_cache", JSON.stringify(store));
-    storeMeta = {salt: store.salt};
+    const cloud = await cloudLoad(slotFile);
+    if(!cloud || !cloud.wrapPw || dirty) return;
+    const lc = JSON.parse(localStorage.getItem(ck())||"null");
+    if(lc && (lc.ts||0) > (cloud.ts||0)){ pushAll(); return; }  // 本机更新→补传云端
+    unpackData(await decObj(DEK, cloud.data));
+    localStorage.setItem(ck(), JSON.stringify(cloud));
+    storeMeta = {salt: cloud.salt};
     renderAll(); setSync("ok","已同步");
   }catch(e){ /* 保持本地 */ }
 }
@@ -762,7 +774,7 @@ function openViewer(id){
   viewId = id;
   $("viewName").textContent = f.name;
   $("viewMeta").textContent = "归入日期 "+f.date.replace(/-/g,"/")+" · "+fmtSize(f.size);
-  $("viewText").textContent = f.text || "（无文字内容可预览）";
+  $("viewText").textContent = f.text || "该文件暂不支持文字预览，可点下方「下载原件」查看";
   $("viewMask").style.display="flex";
 }
 $("viewClose").onclick = ()=> $("viewMask").style.display="none";
@@ -963,11 +975,21 @@ $("impFile").onchange = async e=>{
     if(['doc','ppt','xls'].includes(ext)){
       toast("「"+f.name+"」是老版格式，请先另存为 ."+ext+"x 再导入"); continue;
     }
-    if(f.size > 8*1024*1024){ toast("「"+f.name+"」超过 8MB，太大存不下"); continue; }
+    if(!['docx','pptx','xlsx','txt','md','csv'].includes(ext)){
+      toast("「"+f.name+"」暂不支持（可传 Word/Excel/PPT/txt）"); continue;
+    }
+    if(f.size > 4*1024*1024){ toast("「"+f.name+"」超过 4MB，太大存不下"); continue; }
     try{
       const buf = await f.arrayBuffer();
       let text = "";
-      try{ text = await extractOffice(f.name, buf); }catch(err){ text = ""; }
+      try{
+        if(['txt','md','csv'].includes(ext)){
+          text = new TextDecoder('utf-8').decode(buf);
+          if(text.includes('\uFFFD')) text = new TextDecoder('gb18030').decode(buf);  // Windows中文文档常见GBK编码
+        }else{
+          text = await extractOffice(f.name, buf);
+        }
+      }catch(err){ text = ""; }
       const bin = new Uint8Array(buf);
       let b64 = "";
       for(let i=0;i<bin.length;i+=8192) b64 += String.fromCharCode(...bin.subarray(i,i+8192));
@@ -1049,6 +1071,8 @@ $("impConfirm").onclick = ()=>{
 $("prevM").onclick = ()=>{ curMonth.setMonth(curMonth.getMonth()-1); renderCal(); };
 $("nextM").onclick = ()=>{ curMonth.setMonth(curMonth.getMonth()+1); renderCal(); };
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && DEK) backgroundPull(); });
+$("syncDot").onclick = ()=>{ if(dirty) pushAll(); else backgroundPull(); };
+$("syncDot").style.cursor = "pointer";
 
 initGate();
 </script>
